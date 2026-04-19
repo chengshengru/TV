@@ -4,18 +4,14 @@ import static android.view.ViewGroup.LayoutParams.MATCH_PARENT;
 
 import android.content.res.Configuration;
 import android.content.res.Resources;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
-import android.window.OnBackInvokedCallback;
-import android.window.OnBackInvokedDispatcher;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.FragmentActivity;
-import androidx.leanback.widget.ArrayObjectAdapter;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.viewbinding.ViewBinding;
 
@@ -30,8 +26,6 @@ import me.jessyan.autosize.AutoSizeCompat;
 
 public abstract class BaseActivity extends AppCompatActivity {
 
-    private OnBackInvokedCallback callback;
-
     protected abstract ViewBinding getBinding();
 
     @Override
@@ -39,9 +33,9 @@ public abstract class BaseActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(getBinding().getRoot());
         EventBus.getDefault().register(this);
+        initView(savedInstanceState);
         Util.hideSystemUI(this);
         setBackCallback();
-        initView();
         initEvent();
     }
 
@@ -60,7 +54,7 @@ public abstract class BaseActivity extends AppCompatActivity {
         return true;
     }
 
-    protected void initView() {
+    protected void initView(Bundle savedInstanceState) {
     }
 
     protected void initEvent() {
@@ -74,21 +68,17 @@ public abstract class BaseActivity extends AppCompatActivity {
         return view.getVisibility() == View.GONE;
     }
 
-    protected void notifyItemChanged(RecyclerView view, ArrayObjectAdapter adapter) {
-        view.post(() -> adapter.notifyArrayItemRangeChanged(0, adapter.size()));
+    protected void notifyItemChanged(RecyclerView view, RecyclerView.Adapter<?> adapter) {
+        view.post(() -> adapter.notifyDataSetChanged());
     }
 
     private void setBackCallback() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback = this::onBackInvoked);
-        } else {
-            getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
-                @Override
-                public void handleOnBackPressed() {
-                    onBackInvoked();
-                }
-            });
-        }
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                onBackInvoked();
+            }
+        });
     }
 
     private Resources hackResources(Resources resources) {
@@ -127,8 +117,7 @@ public abstract class BaseActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         EventBus.getDefault().unregister(this);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(callback);
+        super.onDestroy();
     }
 }
