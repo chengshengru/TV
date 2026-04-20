@@ -6,9 +6,26 @@ import android.speech.SpeechRecognizer;
 import android.text.Editable;
 import android.text.TextWatcher;
 
+import java.util.Collections;
 import java.util.List;
 
 public abstract class CustomTextListener implements TextWatcher, RecognitionListener {
+
+    private Runnable done;
+
+    public void setDone(Runnable done) {
+        this.done = done;
+    }
+
+    private void done() {
+        if (done != null) done.run();
+    }
+
+    private String parse(Bundle bundle) {
+        List<String> texts = bundle == null ? Collections.emptyList() : bundle.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+        if (texts == null || texts.isEmpty()) return "";
+        return texts.get(0).trim();
+    }
 
     @Override
     public void onReadyForSpeech(Bundle params) {
@@ -31,25 +48,23 @@ public abstract class CustomTextListener implements TextWatcher, RecognitionList
     }
 
     @Override
-    public void onError(int error) {
-    }
-
-    @Override
-    public void onResults(Bundle results) {
-        if (results == null) return;
-        StringBuilder sb = new StringBuilder();
-        List<String> texts = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-        for (String text : texts) sb.append(text).append("\n");
-        String result = sb.toString().trim();
-        if (!result.isEmpty()) onResults(result);
-    }
-
-    @Override
     public void onPartialResults(Bundle partialResults) {
     }
 
     @Override
     public void onEvent(int eventType, Bundle params) {
+    }
+
+    @Override
+    public void onError(int error) {
+        done();
+        onResults("");
+    }
+
+    @Override
+    public void onResults(Bundle results) {
+        done();
+        onResults(parse(results));
     }
 
     @Override

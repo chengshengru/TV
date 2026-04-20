@@ -22,7 +22,6 @@ import com.fongmi.android.tv.Setting;
 import com.fongmi.android.tv.databinding.ViewWallBinding;
 import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.utils.FileUtil;
-import com.fongmi.android.tv.utils.ResUtil;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -54,11 +53,11 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
     private void init() {
         binding = ViewWallBinding.inflate(LayoutInflater.from(getContext()), this, true);
         ((ComponentActivity) getContext()).getLifecycle().addObserver(this);
-        createPlayer();
         refresh();
     }
 
-    private void createPlayer() {
+    private void ensurePlayer() {
+        if (player != null) return;
         player = new ExoPlayer.Builder(getContext()).build();
         player.setRepeatMode(Player.REPEAT_MODE_ALL);
         player.setPlayWhenReady(true);
@@ -76,7 +75,7 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
     }
 
     private void stop() {
-        if (player.isPlaying()) {
+        if (player != null && player.isPlaying()) {
             player.stop();
             player.clearMediaItems();
         }
@@ -91,19 +90,24 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
     }
 
     private void load() {
-        File file = FileUtil.getWall(Setting.getWall());
+        int wall = Setting.getWall();
+        File file = FileUtil.getWall(wall);
         cache = Drawable.createFromPath(FileUtil.getWallCache().getAbsolutePath());
-        if (!file.getName().endsWith("0")) loadRes(ResUtil.getDrawable(file.getName()));
+        if (Setting.getWallType() == 0 && wall != 0) loadRes(wall);
         else if (Setting.getWallType() == 2) loadVideo(file);
         else if (Setting.getWallType() == 1) loadGif(file);
         else loadImage();
     }
 
-    private void loadRes(int resId) {
-        binding.image.setImageResource(resId);
+    private void loadRes(int wall) {
+        if (wall == 1) binding.image.setImageResource(R.drawable.wallpaper_1);
+        else if (wall == 2) binding.image.setImageResource(R.drawable.wallpaper_2);
+        else if (wall == 3) binding.image.setImageResource(R.drawable.wallpaper_3);
+        else if (wall == 4) binding.image.setImageResource(R.drawable.wallpaper_4);
     }
 
     private void loadVideo(File file) {
+        ensurePlayer();
         ensureVideoView();
         video.setPlayer(player);
         video.setVisibility(VISIBLE);
@@ -145,7 +149,7 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
     @Override
     public void onResume(@NonNull LifecycleOwner owner) {
         if (drawable != null) drawable.start();
-        if (video == null || video.getVisibility() != VISIBLE || player.getMediaItemCount() == 0) return;
+        if (player == null || video == null || video.getVisibility() != VISIBLE || player.getMediaItemCount() == 0) return;
         video.setPlayer(player);
         player.play();
     }
@@ -153,7 +157,7 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
     @Override
     public void onPause(@NonNull LifecycleOwner owner) {
         if (drawable != null) drawable.pause();
-        if (video == null || video.getVisibility() != VISIBLE || player.getMediaItemCount() == 0) return;
+        if (player == null || video == null || video.getVisibility() != VISIBLE || player.getMediaItemCount() == 0) return;
         video.setPlayer(null);
         player.pause();
     }
@@ -163,7 +167,7 @@ public class CustomWallView extends FrameLayout implements DefaultLifecycleObser
         EventBus.getDefault().unregister(this);
         if (drawable != null) drawable.recycle();
         if (video != null) removeView(video);
-        player.release();
+        if (player != null) player.release();
         drawable = null;
         binding = null;
         player = null;
