@@ -1,4 +1,5 @@
 # TV
+-keep class androidx.leanback.widget.** { *; }
 -keep class com.fongmi.quickjs.method.** { *; }
 -keep class com.fongmi.android.tv.bean.** { *; }
 
@@ -29,17 +30,13 @@
 -keep class com.github.catvod.crawler.** { *; }
 -keep class * extends com.github.catvod.crawler.Spider
 
-# Cling
--dontwarn javax.**
--dontwarn sun.net.**
--dontwarn java.awt.**
--dontwarn com.sun.net.**
--dontwarn org.ietf.jgss.**
--keep class javax.xml.** { *; }
--keep class org.fourthline.cling.** { *; }
-
 # Jianpian
 -keep class com.p2p.** { *; }
+
+# JUPnP
+-dontwarn org.jupnp.**
+-keep class org.jupnp.** { *; }
+-keep class javax.xml.** { *; }
 
 # Nano
 -keep class fi.iki.elonen.** { *; }

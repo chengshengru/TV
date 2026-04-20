@@ -1,10 +1,10 @@
 .idea
+.vscode
 .gradle
 .github
 .settings
-*.jks
-lib-*.aar
 *build
-/media*
+*.jks
+*.properties
+lib-*.aar
 /Release
-/local.properties
