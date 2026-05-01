@@ -7,9 +7,9 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.Setting;
 import com.fongmi.android.tv.databinding.DialogSpeedBinding;
 import com.fongmi.android.tv.impl.SpeedCallback;
+import com.fongmi.android.tv.setting.PlayerSetting;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 public class SpeedDialog {
@@ -39,7 +39,7 @@ public class SpeedDialog {
     }
 
     private void initView() {
-        binding.slider.setValue(value = Setting.getSpeed());
+        binding.slider.setValue(value = PlayerSetting.getSpeed());
     }
 
     private void onPositive(DialogInterface dialog, int which) {

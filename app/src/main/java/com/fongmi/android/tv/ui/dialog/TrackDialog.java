@@ -31,13 +31,12 @@ import com.fongmi.android.tv.ui.adapter.TrackAdapter;
 import com.fongmi.android.tv.ui.custom.SpaceItemDecoration;
 import com.fongmi.android.tv.utils.FileChooser;
 import com.fongmi.android.tv.utils.ResUtil;
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public final class TrackDialog extends BaseDialog implements TrackAdapter.OnClickListener {
+public final class TrackDialog extends BaseBottomSheetDialog implements TrackAdapter.OnClickListener {
 
     private final TrackNameProvider provider;
     private final TrackAdapter adapter;
@@ -66,7 +65,7 @@ public final class TrackDialog extends BaseDialog implements TrackAdapter.OnClic
     }
 
     public void show(FragmentActivity activity) {
-        for (Fragment f : activity.getSupportFragmentManager().getFragments()) if (f instanceof BottomSheetDialogFragment) return;
+        for (Fragment f : activity.getSupportFragmentManager().getFragments()) if (f instanceof TrackDialog) return;
         show(activity.getSupportFragmentManager(), null);
         this.listener = (Listener) activity;
     }
@@ -91,18 +90,18 @@ public final class TrackDialog extends BaseDialog implements TrackAdapter.OnClic
 
     @Override
     protected void initEvent() {
-        binding.choose.setOnClickListener(this::showChooser);
+        binding.choose.setOnClickListener(this::onChoose);
         binding.subtitle.setOnClickListener(this::onSubtitle);
+    }
+
+    private void onChoose(View view) {
+        FileChooser.from(launcher).show(new String[]{MimeTypes.APPLICATION_SUBRIP, MimeTypes.TEXT_SSA, MimeTypes.TEXT_VTT, MimeTypes.APPLICATION_TTML, "audio/*", "text/*", "application/octet-stream"});
+        player.pause();
     }
 
     private void onSubtitle(View view) {
         App.post(() -> listener.onSubtitleClick(), 100);
         dismiss();
-    }
-
-    private void showChooser(View view) {
-        FileChooser.from(launcher).show(new String[]{MimeTypes.APPLICATION_SUBRIP, MimeTypes.TEXT_SSA, MimeTypes.TEXT_VTT, MimeTypes.APPLICATION_TTML, "audio/*", "text/*", "application/octet-stream"});
-        player.pause();
     }
 
     private List<Track> getTrack() {

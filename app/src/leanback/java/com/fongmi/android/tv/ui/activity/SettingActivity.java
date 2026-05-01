@@ -11,7 +11,6 @@ import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.BuildConfig;
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.Setting;
 import com.fongmi.android.tv.Updater;
 import com.fongmi.android.tv.api.config.LiveConfig;
 import com.fongmi.android.tv.api.config.VodConfig;
@@ -28,6 +27,9 @@ import com.fongmi.android.tv.impl.ConfigCallback;
 import com.fongmi.android.tv.impl.DohCallback;
 import com.fongmi.android.tv.impl.LiveCallback;
 import com.fongmi.android.tv.impl.SiteCallback;
+import com.fongmi.android.tv.setting.PlayerSetting;
+import com.fongmi.android.tv.setting.Setting;
+import com.fongmi.android.tv.ui.activity.SettingDanmakuActivity;
 import com.fongmi.android.tv.ui.base.BaseActivity;
 import com.fongmi.android.tv.ui.dialog.ConfigDialog;
 import com.fongmi.android.tv.ui.dialog.DohDialog;
@@ -93,7 +95,7 @@ public class SettingActivity extends BaseActivity implements ConfigCallback, Sit
     private void setOtherText() {
         mBinding.dohText.setText(getDohList()[getDohIndex()]);
         mBinding.incognitoText.setText(getSwitch(Setting.isIncognito()));
-        mBinding.sizeText.setText((size = ResUtil.getStringArray(R.array.select_size))[Setting.getSize()]);
+        mBinding.sizeText.setText((size = ResUtil.getStringArray(R.array.select_size))[PlayerSetting.getSize()]);
     }
 
     private void setCacheText() {
@@ -115,6 +117,7 @@ public class SettingActivity extends BaseActivity implements ConfigCallback, Sit
         mBinding.cache.setOnClickListener(this::onCache);
         mBinding.backup.setOnClickListener(this::onBackup);
         mBinding.player.setOnClickListener(this::onPlayer);
+        mBinding.danmaku.setOnClickListener(this::onDanmaku);
         mBinding.restore.setOnClickListener(this::onRestore);
         mBinding.version.setOnClickListener(this::onVersion);
         mBinding.vod.setOnLongClickListener(this::onVodEdit);
@@ -232,6 +235,10 @@ public class SettingActivity extends BaseActivity implements ConfigCallback, Sit
         SettingPlayerActivity.start(this);
     }
 
+    private void onDanmaku(View view) {
+        SettingDanmakuActivity.start(this);
+    }
+
     private void onVersion(View view) {
         Updater.create().force().start(this);
     }
@@ -258,9 +265,9 @@ public class SettingActivity extends BaseActivity implements ConfigCallback, Sit
     }
 
     private void setSize(View view) {
-        int index = (Setting.getSize() + 1) % size.length;
+        int index = (PlayerSetting.getSize() + 1) % size.length;
         mBinding.sizeText.setText(size[index]);
-        Setting.putSize(index);
+        PlayerSetting.putSize(index);
         RefreshEvent.size();
     }
 

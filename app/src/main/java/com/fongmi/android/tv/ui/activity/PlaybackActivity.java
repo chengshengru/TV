@@ -1,4 +1,4 @@
-package com.fongmi.android.tv.ui.base;
+package com.fongmi.android.tv.ui.activity;
 
 import android.app.PendingIntent;
 import android.content.ComponentName;
@@ -19,12 +19,13 @@ import androidx.media3.session.SessionToken;
 import androidx.media3.ui.PlayerView;
 
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.Setting;
 import com.fongmi.android.tv.bean.Result;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.player.engine.PlaySpec;
 import com.fongmi.android.tv.player.exo.ExoUtil;
 import com.fongmi.android.tv.service.PlaybackService;
+import com.fongmi.android.tv.setting.PlayerSetting;
+import com.fongmi.android.tv.ui.base.BaseActivity;
 import com.fongmi.android.tv.ui.custom.CustomSeekView;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -59,6 +60,10 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     protected void setRedirect(boolean redirect) {
         this.redirect = redirect;
         if (mService != null) mService.setNavigationCallback(redirect ? null : getNavigationCallback(), getPlaybackKey());
+    }
+
+    protected void updateNavigationKey() {
+        if (mService != null) mService.setNavigationCallback(getNavigationCallback(), getPlaybackKey());
     }
 
     protected boolean isAudioOnly() {
@@ -151,6 +156,8 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
             onError(ResUtil.getString(R.string.error_play_drm));
         } else if (result.hasMsg()) {
             onError(result.getMsg());
+        } else if (result.getRealUrl().isEmpty()) {
+            onError(ResUtil.getString(R.string.error_play_url));
         } else if (result.needParse() || useParse) {
             attachSurface();
             player().parse(key, result, useParse, metadata);
@@ -208,7 +215,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     }
 
     private void setRender() {
-        getExoView().setRender(Setting.getRender());
+        getExoView().setRender(PlayerSetting.getRender());
         detachSurface();
         attachSurface();
     }
@@ -336,7 +343,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     @Override
     protected void onStop() {
         super.onStop();
-        if (isOwner() && Setting.isBackgroundOff() && mController != null) mController.pause();
+        if (isOwner() && PlayerSetting.isBackgroundOff() && mController != null) mController.pause();
     }
 
     @Override

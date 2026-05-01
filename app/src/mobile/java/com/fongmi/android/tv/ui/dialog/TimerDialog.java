@@ -13,13 +13,12 @@ import androidx.viewbinding.ViewBinding;
 import com.fongmi.android.tv.databinding.DialogTimerBinding;
 import com.fongmi.android.tv.utils.Timer;
 import com.fongmi.android.tv.utils.Util;
-import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 
 import java.util.Formatter;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
-public class TimerDialog extends BaseDialog implements Timer.Callback {
+public class TimerDialog extends BaseBottomSheetDialog implements Timer.Callback {
 
     private DialogTimerBinding binding;
     private StringBuilder builder;
@@ -35,7 +34,7 @@ public class TimerDialog extends BaseDialog implements Timer.Callback {
     }
 
     public void show(FragmentActivity activity) {
-        for (Fragment f : activity.getSupportFragmentManager().getFragments()) if (f instanceof BottomSheetDialogFragment) return;
+        for (Fragment f : activity.getSupportFragmentManager().getFragments()) if (f instanceof TimerDialog) return;
         show(activity.getSupportFragmentManager(), null);
     }
 
