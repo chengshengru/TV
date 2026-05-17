@@ -10,7 +10,7 @@ import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.bean.Filter;
 import com.fongmi.android.tv.databinding.DialogFilterBinding;
-import com.fongmi.android.tv.impl.FilterCallback;
+import com.fongmi.android.tv.impl.FilterListener;
 import com.fongmi.android.tv.ui.adapter.FilterAdapter;
 
 import java.util.List;
@@ -18,7 +18,7 @@ import java.util.List;
 public class FilterDialog extends BaseBottomSheetDialog {
 
     private DialogFilterBinding binding;
-    private FilterCallback callback;
+    private FilterListener listener;
     private List<Filter> filter;
 
     public static FilterDialog create() {
@@ -33,7 +33,7 @@ public class FilterDialog extends BaseBottomSheetDialog {
     public void show(Fragment fragment) {
         for (Fragment f : fragment.getChildFragmentManager().getFragments()) if (f instanceof FilterDialog) return;
         show(fragment.getChildFragmentManager(), null);
-        this.callback = (FilterCallback) fragment;
+        this.listener = (FilterListener) fragment;
     }
 
     @Override
@@ -43,7 +43,7 @@ public class FilterDialog extends BaseBottomSheetDialog {
 
     @Override
     protected void initView() {
-        binding.recycler.setAdapter(new FilterAdapter(callback, filter));
         binding.recycler.setHasFixedSize(true);
+        binding.recycler.setAdapter(new FilterAdapter(listener, filter));
     }
 }

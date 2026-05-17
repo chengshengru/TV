@@ -156,7 +156,7 @@ public class CustomWebView extends WebView implements DialogInterface.OnDismissL
     private void showDialog() {
         if (dialog != null || App.activity() == null) return;
         if (getParent() != null) ((ViewGroup) getParent()).removeView(this);
-        dialog = new WebDialog(this).show();
+        dialog = WebDialog.create(this).show();
         App.removeCallbacks(timer);
     }
 

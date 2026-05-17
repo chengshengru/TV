@@ -50,7 +50,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorPrimary" />
+            android:textColor="@color/white" />
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 
@@ -86,7 +86,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorPrimary" />
+            android:textColor="@color/white" />
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 
@@ -174,7 +174,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorPrimary" />
+            android:textColor="@color/white" />
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 
@@ -213,7 +213,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorPrimary" />
+            android:textColor="@color/white" />
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 
@@ -252,7 +252,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorPrimary" />
+            android:textColor="@color/white" />
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 
@@ -291,7 +291,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorPrimary" />
+            android:textColor="@color/white" />
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 
@@ -330,7 +330,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorPrimary" />
+            android:textColor="@color/white" />
 
     </androidx.appcompat.widget.LinearLayoutCompat>
 

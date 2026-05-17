@@ -15,7 +15,6 @@ import androidx.core.os.HandlerCompat;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.hook.Hook;
 import com.github.catvod.Init;
-import com.google.android.material.color.DynamicColors;
 import com.google.gson.Gson;
 
 public class App extends Application implements Application.ActivityLifecycleCallbacks {
@@ -84,7 +83,6 @@ public class App extends Application implements Application.ActivityLifecycleCal
         super.onCreate();
         Notify.createChannel();
         registerActivityLifecycleCallbacks(this);
-        DynamicColors.applyToActivitiesIfAvailable(this);
     }
 
     @Override

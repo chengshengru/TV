@@ -283,6 +283,10 @@ public class PlayerManager implements ParseCallback {
         stopParse();
     }
 
+    public void clearMediaItems() {
+        player.clearMediaItems();
+    }
+
     public boolean isRepeatOne() {
         return engine.isRepeatOne();
     }
@@ -366,6 +370,11 @@ public class PlayerManager implements ParseCallback {
         else danmakuController.setDataSource(Uri.parse(item.getRealUrl()));
     }
 
+    public void addDanmaku(Danmaku item) {
+        if (danmakuController == null || item.isEmpty()) return;
+        if (spec != null) spec.addDanmaku(item);
+    }
+
     @Override
     public void onParseSuccess(Map<String, String> headers, String url, String from) {
         if (!TextUtils.isEmpty(from)) Notify.show(ResUtil.getString(R.string.parse_from, from));
@@ -423,19 +432,12 @@ public class PlayerManager implements ParseCallback {
             PlayerEngine.ErrorAction action = engine.handleError(e);
             if (action == PlayerEngine.ErrorAction.RECOVERED) {
                 setDanmakus(spec.getDanmakus());
-                return;
-            }
-            if (++retry > 2) {
+            } else if (action == PlayerEngine.ErrorAction.FATAL) {
                 callback.onError(engine.getErrorMessage(e));
-                return;
-            }
-            switch (action) {
-                case DECODE:
-                    toggleDecode();
-                    break;
-                case FATAL:
-                    callback.onError(engine.getErrorMessage(e));
-                    break;
+            } else if (++retry > 1) {
+                callback.onError(engine.getErrorMessage(e));
+            } else {
+                toggleDecode();
             }
         }
     };

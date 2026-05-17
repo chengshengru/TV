@@ -24,6 +24,18 @@ public abstract class BaseBottomSheetDialog extends BottomSheetDialogFragment {
 
     protected abstract ViewBinding getBinding(@NonNull LayoutInflater inflater, @Nullable ViewGroup container);
 
+    @NonNull
+    @Override
+    public Dialog onCreateDialog(Bundle savedInstanceState) {
+        BottomSheetDialog dialog = (BottomSheetDialog) super.onCreateDialog(savedInstanceState);
+        dialog.setOnShowListener(d -> setBehavior(dialog));
+        Window window = dialog.getWindow();
+        if (window == null) return dialog;
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        if (Util.isFullscreen(getActivity())) window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        return dialog;
+    }
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -45,24 +57,6 @@ public abstract class BaseBottomSheetDialog extends BottomSheetDialogFragment {
 
     protected boolean transparent() {
         return false;
-    }
-
-    protected void setDimAmount(float amount) {
-        if (getDialog() == null || getDialog().getWindow() == null) return;
-        getDialog().getWindow().addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-        getDialog().getWindow().setDimAmount(amount);
-    }
-
-    @NonNull
-    @Override
-    public Dialog onCreateDialog(Bundle savedInstanceState) {
-        BottomSheetDialog dialog = (BottomSheetDialog) super.onCreateDialog(savedInstanceState);
-        dialog.setOnShowListener(d -> setBehavior(dialog));
-        Window window = dialog.getWindow();
-        if (window == null) return dialog;
-        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        if (Util.isFullscreen(getActivity())) window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
-        return dialog;
     }
 
     protected void setBehavior(BottomSheetDialog dialog) {

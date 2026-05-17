@@ -28,6 +28,7 @@ import com.fongmi.android.tv.impl.Callback;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.ui.activity.ScanActivity;
 import com.fongmi.android.tv.ui.adapter.DeviceAdapter;
+import com.fongmi.android.tv.ui.custom.SpaceItemDecoration;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.ScanTask;
@@ -52,15 +53,15 @@ public class SyncDialog extends BaseBottomSheetDialog implements DeviceAdapter.O
     private ScanTask scanTask;
     private String type;
 
-    public static SyncDialog create() {
-        return new SyncDialog();
-    }
-
     public SyncDialog() {
         body = new FormBody.Builder();
         scanTask = new ScanTask(this);
         client = OkHttp.client(Constant.TIMEOUT_SYNC);
         mode = ResUtil.getTypedArray(R.array.cast_mode);
+    }
+
+    public static SyncDialog create() {
+        return new SyncDialog();
     }
 
     public SyncDialog history() {
@@ -110,11 +111,13 @@ public class SyncDialog extends BaseBottomSheetDialog implements DeviceAdapter.O
     private void setRecyclerView() {
         binding.recycler.setHasFixedSize(false);
         binding.recycler.setAdapter(adapter = new DeviceAdapter(this));
+        binding.recycler.addItemDecoration(new SpaceItemDecoration(1, 16));
     }
 
     private void getDevice() {
         adapter.setItems(Device.getAll(), () -> {
             if (adapter.getItemCount() == 0) onRefresh();
+            else binding.recycler.setVisibility(View.VISIBLE);
         });
     }
 
@@ -139,6 +142,7 @@ public class SyncDialog extends BaseBottomSheetDialog implements DeviceAdapter.O
         adapter.clear(() -> {
             Device.delete();
             scanTask.start();
+            binding.recycler.setVisibility(View.GONE);
         });
     }
 
@@ -148,6 +152,7 @@ public class SyncDialog extends BaseBottomSheetDialog implements DeviceAdapter.O
 
     @Override
     public void onFind(Device device) {
+        binding.recycler.setVisibility(View.VISIBLE);
         adapter.sort(device);
     }
 

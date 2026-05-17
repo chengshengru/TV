@@ -84,11 +84,12 @@
     <string name="danmaku_fixed_duration">固定显示时间</string>
     <string name="danmaku_time_offset">时间偏移</string>
     <string name="danmaku_max_on_screen">最多同时显示</string>
-    <string name="danmaku_scroll_area_ratio">滚动区域比例</string>
+    <string name="danmaku_scroll_area_ratio">滚动区域</string>
     <string name="danmaku_max_scroll_lines">最大滚动行数</string>
     <string name="danmaku_max_top_lines">最大顶部行数</string>
     <string name="danmaku_max_bottom_lines">最大底部行数</string>
-    <string name="danmaku_line_spacing">行距倍率</string>
+    <string name="danmaku_line_spacing">垂直间距</string>
+    <string name="danmaku_scroll_gap_ratio">水平间距</string>
     <string name="danmaku_show_scroll">滚动弹幕</string>
     <string name="danmaku_show_top">顶部固定</string>
     <string name="danmaku_show_bottom">底部固定</string>
@@ -117,6 +118,9 @@
     <string name="setting_player">播放设置</string>
     <string name="setting_danmaku">弹幕设置</string>
     <string name="setting_incognito">无痕模式</string>
+    <string name="setting_theme_color">主题色彩</string>
+    <string name="setting_auto">自动</string>
+    <string name="setting_custom">自定义</string>
     <string name="setting_size">图片尺寸</string>
     <string name="setting_doh">DoH</string>
     <string name="setting_proxy">Proxy</string>
@@ -153,8 +157,9 @@
 
     <!-- Danmaku -->
     <string name="danmaku_load">弹幕加载</string>
-    <string name="danmaku_api">弹幕接口</string>
-    <string name="danmaku_auto_load">自动加载</string>
+    <string name="danmaku_api">搜索接口</string>
+    <string name="danmaku_auto_load">自动搜索</string>
+    <string name="danmaku_spider_first">爬虫优先</string>
 
     <!-- Search -->
     <string name="search_keyword">关键字…</string>
@@ -201,6 +206,7 @@
 
     <!-- UNIT -->
     <string name="all">全部</string>
+    <string name="yes">有</string>
     <string name="none">无</string>
     <string name="times">倍</string>
     <string name="lines">行</string>

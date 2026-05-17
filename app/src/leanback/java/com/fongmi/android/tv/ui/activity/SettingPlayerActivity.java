@@ -10,9 +10,9 @@ import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.databinding.ActivitySettingPlayerBinding;
-import com.fongmi.android.tv.impl.BufferCallback;
-import com.fongmi.android.tv.impl.SpeedCallback;
-import com.fongmi.android.tv.impl.UaCallback;
+import com.fongmi.android.tv.impl.BufferListener;
+import com.fongmi.android.tv.impl.SpeedListener;
+import com.fongmi.android.tv.impl.UaListener;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.ui.base.BaseActivity;
@@ -23,7 +23,7 @@ import com.fongmi.android.tv.utils.ResUtil;
 
 import java.text.DecimalFormat;
 
-public class SettingPlayerActivity extends BaseActivity implements UaCallback, BufferCallback, SpeedCallback {
+public class SettingPlayerActivity extends BaseActivity implements UaListener, BufferListener, SpeedListener {
 
     private ActivitySettingPlayerBinding mBinding;
     private DecimalFormat format;
@@ -86,7 +86,7 @@ public class SettingPlayerActivity extends BaseActivity implements UaCallback, B
     }
 
     private void onUa(View view) {
-        UaDialog.create(this).show();
+        UaDialog.show(this);
     }
 
     @Override
@@ -107,7 +107,7 @@ public class SettingPlayerActivity extends BaseActivity implements UaCallback, B
     }
 
     private void onSpeed(View view) {
-        SpeedDialog.create(this).show();
+        SpeedDialog.show(this);
     }
 
     @Override
@@ -117,7 +117,7 @@ public class SettingPlayerActivity extends BaseActivity implements UaCallback, B
     }
 
     private void onBuffer(View view) {
-        BufferDialog.create(this).show();
+        BufferDialog.show(this);
     }
 
     @Override

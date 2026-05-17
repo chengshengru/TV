@@ -40,10 +40,10 @@ import com.fongmi.android.tv.bean.Track;
 import com.fongmi.android.tv.databinding.ActivityLiveBinding;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.impl.Callback;
-import com.fongmi.android.tv.impl.ConfigCallback;
+import com.fongmi.android.tv.impl.ConfigListener;
 import com.fongmi.android.tv.impl.CustomTarget;
-import com.fongmi.android.tv.impl.LiveCallback;
-import com.fongmi.android.tv.impl.PassCallback;
+import com.fongmi.android.tv.impl.LiveListener;
+import com.fongmi.android.tv.impl.PassListener;
 import com.fongmi.android.tv.model.LiveViewModel;
 import com.fongmi.android.tv.player.PlayerHelper;
 import com.fongmi.android.tv.player.PlayerManager;
@@ -78,7 +78,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-public class LiveActivity extends PlaybackActivity implements CustomKeyDown.Listener, TrackDialog.Listener, Biometric.Callback, PassCallback, ConfigCallback, LiveCallback, GroupAdapter.OnClickListener, ChannelAdapter.OnClickListener, EpgDataAdapter.OnClickListener, CastDialog.Listener, InfoDialog.Listener {
+public class LiveActivity extends PlaybackActivity implements CustomKeyDown.Listener, TrackDialog.Listener, Biometric.Callback, PassListener, ConfigListener, LiveListener, GroupAdapter.OnClickListener, ChannelAdapter.OnClickListener, EpgDataAdapter.OnClickListener, CastDialog.Listener, InfoDialog.Listener {
 
     private ActivityLiveBinding mBinding;
     private ChannelAdapter mChannelAdapter;
@@ -218,9 +218,9 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     private void setVideoView() {
         setScale(LiveSetting.getScale());
-        mBinding.control.action.invert.setActivated(LiveSetting.isInvert());
-        mBinding.control.action.across.setActivated(LiveSetting.isAcross());
-        mBinding.control.action.change.setActivated(LiveSetting.isChange());
+        mBinding.control.action.invert.setSelected(LiveSetting.isInvert());
+        mBinding.control.action.across.setSelected(LiveSetting.isAcross());
+        mBinding.control.action.change.setSelected(LiveSetting.isChange());
         mBinding.video.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> mPiP.update(this, view));
     }
 
@@ -345,7 +345,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     }
 
     private void onInfo() {
-        InfoDialog.create(this).title(mBinding.control.title.getText()).headers(player().getHeaders()).url(player().getUrl()).show();
+        InfoDialog.create().title(mBinding.control.title.getText()).headers(player().getHeaders()).url(player().getUrl()).show(this);
     }
 
     private void onLock() {
@@ -374,7 +374,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     private void onHome() {
         if (LiveConfig.isOnly()) setLive(getHome());
-        else LiveDialog.create(this).show();
+        else LiveDialog.show(this);
         hideControl();
     }
 
@@ -402,26 +402,26 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
     }
 
     private void onConfig() {
-        HistoryDialog.create(this).readOnly().type(1).show();
+        HistoryDialog.create().live().readOnly().show(this);
         hideControl();
     }
 
     private void onInvert() {
         setR1Callback();
         LiveSetting.putInvert(!LiveSetting.isInvert());
-        mBinding.control.action.invert.setActivated(LiveSetting.isInvert());
+        mBinding.control.action.invert.setSelected(LiveSetting.isInvert());
     }
 
     private void onAcross() {
         setR1Callback();
         LiveSetting.putAcross(!LiveSetting.isAcross());
-        mBinding.control.action.across.setActivated(LiveSetting.isAcross());
+        mBinding.control.action.across.setSelected(LiveSetting.isAcross());
     }
 
     private void onChange() {
         setR1Callback();
         LiveSetting.putChange(!LiveSetting.isChange());
-        mBinding.control.action.change.setActivated(LiveSetting.isChange());
+        mBinding.control.action.change.setSelected(LiveSetting.isChange());
     }
 
     private void onDecode() {
@@ -827,7 +827,7 @@ public class LiveActivity extends PlaybackActivity implements CustomKeyDown.List
 
     @Override
     public void setLive(Live item) {
-        if (item.isActivated()) item.getGroups().clear();
+        if (item.isSelected()) item.getGroups().clear();
         LiveConfig.get().setHome(item);
         player().reset();
         player().clear();

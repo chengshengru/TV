@@ -96,8 +96,6 @@ public final class SubtitleDialog extends BaseBottomSheetDialog {
     @Override
     public void onResume() {
         super.onResume();
-        boolean full = isFull();
-        if (full) setDimAmount(0.5f);
-        getDialog().getWindow().setLayout(ResUtil.dp2px(full ? 232 : 216), -1);
+        getDialog().getWindow().setLayout(ResUtil.dp2px(isFull() ? 232 : 216), -1);
     }
 }

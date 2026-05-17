@@ -5,8 +5,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.BuildConfig;
@@ -23,13 +21,11 @@ import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.impl.Callback;
-import com.fongmi.android.tv.impl.ConfigCallback;
-import com.fongmi.android.tv.impl.DohCallback;
-import com.fongmi.android.tv.impl.LiveCallback;
-import com.fongmi.android.tv.impl.SiteCallback;
+import com.fongmi.android.tv.impl.ConfigListener;
+import com.fongmi.android.tv.impl.LiveListener;
+import com.fongmi.android.tv.impl.SiteListener;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.Setting;
-import com.fongmi.android.tv.ui.activity.SettingDanmakuActivity;
 import com.fongmi.android.tv.ui.base.BaseActivity;
 import com.fongmi.android.tv.ui.dialog.ConfigDialog;
 import com.fongmi.android.tv.ui.dialog.DohDialog;
@@ -37,14 +33,12 @@ import com.fongmi.android.tv.ui.dialog.HistoryDialog;
 import com.fongmi.android.tv.ui.dialog.LiveDialog;
 import com.fongmi.android.tv.ui.dialog.RestoreDialog;
 import com.fongmi.android.tv.ui.dialog.SiteDialog;
-import com.fongmi.android.tv.utils.FileChooser;
 import com.fongmi.android.tv.utils.FileUtil;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.PermissionUtil;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.github.catvod.bean.Doh;
 import com.github.catvod.net.OkHttp;
-import com.github.catvod.utils.Path;
 
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
@@ -52,11 +46,10 @@ import org.greenrobot.eventbus.ThreadMode;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SettingActivity extends BaseActivity implements ConfigCallback, SiteCallback, LiveCallback, DohCallback {
+public class SettingActivity extends BaseActivity implements ConfigListener, SiteListener, LiveListener, DohDialog.Listener {
 
     private ActivitySettingBinding mBinding;
     private String[] size;
-    private int type;
 
     public static void start(Activity activity) {
         activity.startActivity(new Intent(activity, SettingActivity.class));
@@ -189,46 +182,46 @@ public class SettingActivity extends BaseActivity implements ConfigCallback, Sit
     }
 
     private void onVod(View view) {
-        ConfigDialog.create(this).launcher(launcher).type(type = 0).show();
+        ConfigDialog.create().vod().show(this);
     }
 
     private void onLive(View view) {
-        ConfigDialog.create(this).launcher(launcher).type(type = 1).show();
+        ConfigDialog.create().live().show(this);
     }
 
     private void onWall(View view) {
-        ConfigDialog.create(this).launcher(launcher).type(type = 2).show();
+        ConfigDialog.create().wall().show(this);
     }
 
     private boolean onVodEdit(View view) {
-        ConfigDialog.create(this).launcher(launcher).type(type = 0).edit().show();
+        ConfigDialog.create().vod().edit().show(this);
         return true;
     }
 
     private boolean onLiveEdit(View view) {
-        ConfigDialog.create(this).launcher(launcher).type(type = 1).edit().show();
+        ConfigDialog.create().live().edit().show(this);
         return true;
     }
 
     private boolean onWallEdit(View view) {
-        ConfigDialog.create(this).launcher(launcher).type(type = 2).edit().show();
+        ConfigDialog.create().wall().edit().show(this);
         return true;
     }
 
     private void onVodHome(View view) {
-        SiteDialog.create(this).action().show();
+        SiteDialog.create().action().show(this);
     }
 
     private void onLiveHome(View view) {
-        LiveDialog.create(this).action().show();
+        LiveDialog.create().action().show(this);
     }
 
     private void onVodHistory(View view) {
-        HistoryDialog.create(this).type(type = 0).show();
+        HistoryDialog.create().vod().show(this);
     }
 
     private void onLiveHistory(View view) {
-        HistoryDialog.create(this).type(type = 1).show();
+        HistoryDialog.create().live().show(this);
     }
 
     private void onPlayer(View view) {
@@ -255,7 +248,7 @@ public class SettingActivity extends BaseActivity implements ConfigCallback, Sit
     }
 
     private boolean onWallHistory(View view) {
-        HistoryDialog.create(this).type(type = 2).show();
+        HistoryDialog.create().wall().show(this);
         return true;
     }
 
@@ -272,7 +265,7 @@ public class SettingActivity extends BaseActivity implements ConfigCallback, Sit
     }
 
     private void setDoh(View view) {
-        DohDialog.create(this).index(getDohIndex()).show();
+        DohDialog.create().index(getDohIndex()).show(this);
     }
 
     @Override
@@ -306,7 +299,7 @@ public class SettingActivity extends BaseActivity implements ConfigCallback, Sit
     }
 
     private void onRestore(View view) {
-        PermissionUtil.requestFile(this, allGranted -> RestoreDialog.create(getActivity()).show(new Callback() {
+        PermissionUtil.requestFile(this, allGranted -> RestoreDialog.create().callback(new Callback() {
             @Override
             public void success() {
                 Notify.show(R.string.restore_success);
@@ -318,7 +311,7 @@ public class SettingActivity extends BaseActivity implements ConfigCallback, Sit
             public void error() {
                 Notify.show(R.string.restore_fail);
             }
-        }));
+        }).show(this));
     }
 
     private void initConfig() {
@@ -335,8 +328,4 @@ public class SettingActivity extends BaseActivity implements ConfigCallback, Sit
         mBinding.wallUrl.setText(WallConfig.getDesc());
     }
 
-    private final ActivityResultLauncher<Intent> launcher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
-        if (result.getResultCode() != RESULT_OK || result.getData() == null || result.getData().getData() == null) return;
-        setConfig(Config.find("file:/" + FileChooser.getPathFromUri(result.getData().getData()).replace(Path.rootPath(), ""), type));
-    });
 }

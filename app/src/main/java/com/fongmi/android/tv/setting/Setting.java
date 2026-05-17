@@ -1,5 +1,11 @@
 package com.fongmi.android.tv.setting;
 
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.provider.Settings;
+
+import com.fongmi.android.tv.App;
 import com.github.catvod.utils.Prefers;
 
 public class Setting {
@@ -106,5 +112,31 @@ public class Setting {
 
     public static void putZhuyin(boolean zhuyin) {
         Prefers.put("zhuyin", zhuyin);
+    }
+
+    public static int getThemeColor() {
+        return Prefers.getInt("theme_color", -1);
+    }
+
+    public static void putThemeColor(int color) {
+        Prefers.put("theme_color", color);
+    }
+
+    public static int getWallColor() {
+        return Prefers.getInt("wall_color", 0);
+    }
+
+    public static void putWallColor(int color) {
+        Prefers.put("wall_color", color);
+    }
+
+    public static int getDynamicColor() {
+        int color = getThemeColor();
+        if (color == -1) return 0;
+        return color != 0 ? color : getWallColor();
+    }
+
+    public static boolean hasFileManager() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && (new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:" + App.get().getPackageName())).resolveActivity(App.get().getPackageManager()) != null || new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION).resolveActivity(App.get().getPackageManager()) != null);
     }
 }

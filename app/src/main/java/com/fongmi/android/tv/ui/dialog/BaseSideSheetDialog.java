@@ -33,7 +33,6 @@ public abstract class BaseSideSheetDialog extends AppCompatDialogFragment {
         dialog.getBehavior().setDraggable(false);
         Window window = dialog.getWindow();
         if (window == null) return dialog;
-        window.setDimAmount(0);
         if (Util.isFullscreen(getActivity())) window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN);
         return dialog;
     }

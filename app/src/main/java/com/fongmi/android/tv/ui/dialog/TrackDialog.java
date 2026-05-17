@@ -42,7 +42,6 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
     private final TrackAdapter adapter;
     private DialogTrackBinding binding;
     private PlayerManager player;
-    private Listener listener;
     private int type;
 
     public static TrackDialog create() {
@@ -67,7 +66,6 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
     public void show(FragmentActivity activity) {
         for (Fragment f : activity.getSupportFragmentManager().getFragments()) if (f instanceof TrackDialog) return;
         show(activity.getSupportFragmentManager(), null);
-        this.listener = (Listener) activity;
     }
 
     @Override
@@ -100,7 +98,8 @@ public final class TrackDialog extends BaseBottomSheetDialog implements TrackAda
     }
 
     private void onSubtitle(View view) {
-        App.post(() -> listener.onSubtitleClick(), 100);
+        Listener listener = (Listener) requireActivity();
+        App.post(listener::onSubtitleClick, 100);
         dismiss();
     }
 

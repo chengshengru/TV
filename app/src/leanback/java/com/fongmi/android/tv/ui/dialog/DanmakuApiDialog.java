@@ -1,19 +1,16 @@
 package com.fongmi.android.tv.ui.dialog;
 
-import android.content.DialogInterface;
 import android.text.TextUtils;
-import android.view.LayoutInflater;
 import android.view.View;
-import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
 
-import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.FragmentActivity;
+import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.databinding.DialogUaBinding;
 import com.fongmi.android.tv.event.ServerEvent;
-import com.fongmi.android.tv.impl.DanmakuCallback;
+import com.fongmi.android.tv.impl.DanmakuListener;
 import com.fongmi.android.tv.server.Server;
 import com.fongmi.android.tv.setting.DanmakuSetting;
 import com.fongmi.android.tv.utils.QRCode;
@@ -24,47 +21,35 @@ import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
-public class DanmakuApiDialog implements DialogInterface.OnDismissListener {
+public class DanmakuApiDialog extends BaseAlertDialog {
 
-    private final DialogUaBinding binding;
-    private final DanmakuCallback callback;
-    private final AlertDialog dialog;
+    private DialogUaBinding binding;
 
-    public static DanmakuApiDialog create(FragmentActivity activity) {
-        return new DanmakuApiDialog(activity);
+    public static void show(FragmentActivity activity) {
+        new DanmakuApiDialog().show(activity.getSupportFragmentManager(), null);
     }
 
-    public DanmakuApiDialog(FragmentActivity activity) {
-        this.callback = (DanmakuCallback) activity;
-        this.binding = DialogUaBinding.inflate(LayoutInflater.from(activity));
-        this.dialog = new MaterialAlertDialogBuilder(activity).setView(binding.getRoot()).create();
+    @Override
+    protected ViewBinding getBinding() {
+        return binding = DialogUaBinding.inflate(getLayoutInflater());
     }
 
-    public void show() {
-        initDialog();
-        initView();
-        initEvent();
+    @Override
+    protected MaterialAlertDialogBuilder getBuilder() {
+        return builder().setView(getBinding().getRoot());
     }
 
-    private void initDialog() {
-        WindowManager.LayoutParams params = dialog.getWindow().getAttributes();
-        params.width = (int) (ResUtil.getScreenWidth() * 0.55f);
-        dialog.getWindow().setAttributes(params);
-        dialog.getWindow().setDimAmount(0);
-        dialog.setOnDismissListener(this);
-        dialog.show();
-    }
-
-    private void initView() {
+    @Override
+    protected void initView() {
         String text;
         binding.text.setText(text = DanmakuSetting.getEffectiveApiUrl());
         binding.text.setSelection(TextUtils.isEmpty(text) ? 0 : text.length());
         binding.code.setImageBitmap(QRCode.getBitmap(Server.get().getAddress(3), 200, 0));
-        binding.info.setText(ResUtil.getString(R.string.push_info, Server.get().getAddress()).replace("，", "\n"));
+        binding.info.setText(ResUtil.getString(R.string.push_info, Server.get().getAddress()).replace("\uff0c", "\n"));
     }
 
-    private void initEvent() {
-        EventBus.getDefault().register(this);
+    @Override
+    protected void initEvent() {
         binding.positive.setOnClickListener(this::onPositive);
         binding.negative.setOnClickListener(this::onNegative);
         binding.text.setOnEditorActionListener((textView, actionId, event) -> {
@@ -74,12 +59,12 @@ public class DanmakuApiDialog implements DialogInterface.OnDismissListener {
     }
 
     private void onPositive(View view) {
-        callback.setDanmakuApi(binding.text.getText().toString().trim());
-        dialog.dismiss();
+        ((DanmakuListener) requireActivity()).setDanmakuApi(binding.text.getText().toString().trim());
+        dismiss();
     }
 
     private void onNegative(View view) {
-        dialog.dismiss();
+        dismiss();
     }
 
     @Subscribe(threadMode = ThreadMode.MAIN)
@@ -90,7 +75,15 @@ public class DanmakuApiDialog implements DialogInterface.OnDismissListener {
     }
 
     @Override
-    public void onDismiss(DialogInterface dialogInterface) {
+    public void onStart() {
+        super.onStart();
+        setWidth(0.55f);
+        EventBus.getDefault().register(this);
+    }
+
+    @Override
+    public void onStop() {
+        super.onStop();
         EventBus.getDefault().unregister(this);
     }
 }

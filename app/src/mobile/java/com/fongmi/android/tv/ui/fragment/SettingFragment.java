@@ -1,13 +1,9 @@
 package com.fongmi.android.tv.ui.fragment;
 
-import android.app.Activity;
-import android.content.Intent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.viewbinding.ViewBinding;
@@ -26,9 +22,9 @@ import com.fongmi.android.tv.db.AppDatabase;
 import com.fongmi.android.tv.event.ConfigEvent;
 import com.fongmi.android.tv.event.RefreshEvent;
 import com.fongmi.android.tv.impl.Callback;
-import com.fongmi.android.tv.impl.ConfigCallback;
-import com.fongmi.android.tv.impl.LiveCallback;
-import com.fongmi.android.tv.impl.SiteCallback;
+import com.fongmi.android.tv.impl.ConfigListener;
+import com.fongmi.android.tv.impl.LiveListener;
+import com.fongmi.android.tv.impl.SiteListener;
 import com.fongmi.android.tv.setting.PlayerSetting;
 import com.fongmi.android.tv.setting.Setting;
 import com.fongmi.android.tv.ui.activity.HomeActivity;
@@ -38,14 +34,13 @@ import com.fongmi.android.tv.ui.dialog.HistoryDialog;
 import com.fongmi.android.tv.ui.dialog.LiveDialog;
 import com.fongmi.android.tv.ui.dialog.RestoreDialog;
 import com.fongmi.android.tv.ui.dialog.SiteDialog;
-import com.fongmi.android.tv.utils.FileChooser;
+import com.fongmi.android.tv.ui.dialog.ThemeDialog;
 import com.fongmi.android.tv.utils.FileUtil;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.PermissionUtil;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.github.catvod.bean.Doh;
 import com.github.catvod.net.OkHttp;
-import com.github.catvod.utils.Path;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import org.greenrobot.eventbus.EventBus;
@@ -55,11 +50,10 @@ import org.greenrobot.eventbus.ThreadMode;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SettingFragment extends BaseFragment implements ConfigCallback, SiteCallback, LiveCallback {
+public class SettingFragment extends BaseFragment implements ConfigListener, SiteListener, LiveListener, ThemeDialog.Listener {
 
     private FragmentSettingBinding mBinding;
     private String[] size;
-    private int type;
 
     public static SettingFragment newInstance() {
         return new SettingFragment();
@@ -67,6 +61,12 @@ public class SettingFragment extends BaseFragment implements ConfigCallback, Sit
 
     private String getSwitch(boolean value) {
         return getString(value ? R.string.setting_on : R.string.setting_off);
+    }
+
+    private String getThemeText() {
+        int color = Setting.getThemeColor();
+        if (color == -1) return getString(R.string.setting_off);
+        return getString(color == 0 ? R.string.setting_auto : R.string.setting_custom);
     }
 
     private int getDohIndex() {
@@ -100,6 +100,7 @@ public class SettingFragment extends BaseFragment implements ConfigCallback, Sit
     }
 
     private void setOtherText() {
+        mBinding.themeColorText.setText(getThemeText());
         mBinding.dohText.setText(getDohList()[getDohIndex()]);
         mBinding.incognitoText.setText(getSwitch(Setting.isIncognito()));
         mBinding.sizeText.setText((size = ResUtil.getStringArray(R.array.select_size))[PlayerSetting.getSize()]);
@@ -134,6 +135,7 @@ public class SettingFragment extends BaseFragment implements ConfigCallback, Sit
         mBinding.wall.setOnLongClickListener(this::onWallEdit);
         mBinding.incognito.setOnClickListener(this::setIncognito);
         mBinding.vodHistory.setOnClickListener(this::onVodHistory);
+        mBinding.themeColor.setOnClickListener(this::onThemeColor);
         mBinding.liveHistory.setOnClickListener(this::onLiveHistory);
         mBinding.wallDefault.setOnClickListener(this::setWallDefault);
         mBinding.wallRefresh.setOnClickListener(this::setWallRefresh);
@@ -143,7 +145,7 @@ public class SettingFragment extends BaseFragment implements ConfigCallback, Sit
     @Override
     public void setConfig(Config config) {
         if (config.getUrl().startsWith("file")) {
-            PermissionUtil.requestFile(this, allGranted -> load(config));
+            requireView().post(() -> PermissionUtil.requestFile(this, allGranted -> load(config)));
         } else {
             load(config);
         }
@@ -195,47 +197,53 @@ public class SettingFragment extends BaseFragment implements ConfigCallback, Sit
         LiveConfig.get().setHome(item);
     }
 
+    @Override
+    public void setTheme(int color) {
+        Setting.putThemeColor(color);
+        RefreshEvent.theme();
+    }
+
     private void onVod(View view) {
-        ConfigDialog.create(this).launcher(launcher).type(type = 0).show();
+        ConfigDialog.create().vod().show(this);
     }
 
     private void onLive(View view) {
-        ConfigDialog.create(this).launcher(launcher).type(type = 1).show();
+        ConfigDialog.create().live().show(this);
     }
 
     private void onWall(View view) {
-        ConfigDialog.create(this).launcher(launcher).type(type = 2).show();
+        ConfigDialog.create().wall().show(this);
     }
 
     private boolean onVodEdit(View view) {
-        ConfigDialog.create(this).launcher(launcher).type(type = 0).edit().show();
+        ConfigDialog.create().vod().edit().show(this);
         return true;
     }
 
     private boolean onLiveEdit(View view) {
-        ConfigDialog.create(this).launcher(launcher).type(type = 1).edit().show();
+        ConfigDialog.create().live().edit().show(this);
         return true;
     }
 
     private boolean onWallEdit(View view) {
-        ConfigDialog.create(this).launcher(launcher).type(type = 2).edit().show();
+        ConfigDialog.create().wall().edit().show(this);
         return true;
     }
 
     private void onVodHome(View view) {
-        SiteDialog.create(this).all().show();
+        SiteDialog.create().search().change().show(this);
     }
 
     private void onLiveHome(View view) {
-        LiveDialog.create(this).action().show();
+        LiveDialog.show(this);
     }
 
     private void onVodHistory(View view) {
-        HistoryDialog.create(this).type(type = 0).show();
+        HistoryDialog.create().vod().show(this);
     }
 
     private void onLiveHistory(View view) {
-        HistoryDialog.create(this).type(type = 1).show();
+        HistoryDialog.create().live().show(this);
     }
 
     private void onPlayer(View view) {
@@ -244,6 +252,10 @@ public class SettingFragment extends BaseFragment implements ConfigCallback, Sit
 
     private void onDanmaku(View view) {
         getRoot().change(3);
+    }
+
+    private void onThemeColor(View view) {
+        ThemeDialog.show(this);
     }
 
     private void onVersion(View view) {
@@ -262,7 +274,7 @@ public class SettingFragment extends BaseFragment implements ConfigCallback, Sit
     }
 
     private boolean onWallHistory(View view) {
-        HistoryDialog.create(this).type(type = 2).show();
+        HistoryDialog.create().wall().show(this);
         return true;
     }
 
@@ -357,9 +369,4 @@ public class SettingFragment extends BaseFragment implements ConfigCallback, Sit
         super.onDestroyView();
         EventBus.getDefault().unregister(this);
     }
-
-    private final ActivityResultLauncher<Intent> launcher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
-        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null || result.getData().getData() == null) return;
-        setConfig(Config.find("file:/" + FileChooser.getPathFromUri(result.getData().getData()).replace(Path.rootPath(), ""), type));
-    });
 }

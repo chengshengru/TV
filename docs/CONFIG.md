@@ -358,27 +358,29 @@ scheme://username:password@host:port
 **範例：**
 
 ```json
-[
-  {
-    "name": "指定域名代理",
-    "hosts": [
-      "googlevideo.com",
-      "raw.githubusercontent.com"
-    ],
-    "urls": [
-      "http://127.0.0.1:7890"
-    ]
-  },
-  {
-    "name": "全域代理",
-    "hosts": [
-      ".*"
-    ],
-    "urls": [
-      "socks5://127.0.0.1:7891"
-    ]
-  }
-]
+{
+  "proxy": [
+    {
+      "name": "指定域名代理",
+      "hosts": [
+        "googlevideo.com",
+        "raw.githubusercontent.com"
+      ],
+      "urls": [
+        "http://127.0.0.1:7890"
+      ]
+    },
+    {
+      "name": "全域代理",
+      "hosts": [
+        ".*"
+      ],
+      "urls": [
+        "socks5://127.0.0.1:7891"
+      ]
+    }
+  ]
+}
 ```
 
 ---
@@ -398,27 +400,29 @@ scheme://username:password@host:port
 **範例：**
 
 ```json
-[
-  {
-    "hosts": [
-      "video.example.com"
-    ],
-    "regex": [
-      "m3u8?token="
-    ],
-    "exclude": [
-      "preview.json"
-    ]
-  },
-  {
-    "hosts": [
-      "ads.example.com"
-    ],
-    "script": [
-      "document.querySelector('.close-btn').click()"
-    ]
-  }
-]
+{
+  "rules": [
+    {
+      "hosts": [
+        "video.example.com"
+      ],
+      "regex": [
+        "m3u8?token="
+      ],
+      "exclude": [
+        "preview.json"
+      ]
+    },
+    {
+      "hosts": [
+        "ads.example.com"
+      ],
+      "script": [
+        "document.querySelector('.close-btn').click()"
+      ]
+    }
+  ]
+}
 ```
 
 ---

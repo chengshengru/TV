@@ -16,6 +16,7 @@ import com.fongmi.android.tv.player.exo.TrackUtil;
 import com.fongmi.android.tv.utils.ResUtil;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class ExoPlayerEngine implements PlayerEngine {
 
@@ -90,12 +91,12 @@ public class ExoPlayerEngine implements PlayerEngine {
 
     @Override
     public boolean isLive() {
-        return player.isCurrentMediaItemLive();
+        return player.getDuration() < TimeUnit.MINUTES.toMillis(1) || player.isCurrentMediaItemLive();
     }
 
     @Override
     public boolean isVod() {
-        return !player.isCurrentMediaItemLive();
+        return player.getDuration() > TimeUnit.MINUTES.toMillis(1) && !player.isCurrentMediaItemLive();
     }
 
     @Override

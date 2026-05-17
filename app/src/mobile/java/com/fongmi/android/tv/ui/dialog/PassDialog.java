@@ -13,13 +13,12 @@ import androidx.fragment.app.FragmentActivity;
 import androidx.viewbinding.ViewBinding;
 
 import com.fongmi.android.tv.databinding.DialogPassBinding;
-import com.fongmi.android.tv.impl.PassCallback;
+import com.fongmi.android.tv.impl.PassListener;
 import com.fongmi.android.tv.utils.ResUtil;
 
 public class PassDialog extends BaseBottomSheetDialog {
 
     private DialogPassBinding binding;
-    private PassCallback callback;
 
     public static PassDialog create() {
         return new PassDialog();
@@ -28,7 +27,6 @@ public class PassDialog extends BaseBottomSheetDialog {
     public void show(FragmentActivity activity) {
         for (Fragment f : activity.getSupportFragmentManager().getFragments()) if (f instanceof PassDialog) return;
         show(activity.getSupportFragmentManager(), null);
-        this.callback = (PassCallback) activity;
     }
 
     @Override
@@ -43,7 +41,7 @@ public class PassDialog extends BaseBottomSheetDialog {
 
     private void onPass() {
         String pass = binding.pass.getText().toString().trim();
-        if (!pass.isEmpty()) callback.setPass(pass);
+        if (!pass.isEmpty()) ((PassListener) requireActivity()).setPass(pass);
         dismiss();
     }
 

@@ -60,7 +60,7 @@ public class TitleAdapter extends RecyclerView.Adapter<TitleAdapter.ViewHolder> 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         MediaTitle item = mItems.get(position);
-        holder.binding.text.setActivated(item.selected);
+        holder.binding.text.setSelected(item.selected);
         holder.binding.text.setText(item.label + " [" + Util.format(builder, formatter, item.durationUs / 1000) + "]");
     }
 

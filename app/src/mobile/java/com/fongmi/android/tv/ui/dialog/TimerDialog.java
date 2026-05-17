@@ -20,17 +20,17 @@ import java.util.concurrent.TimeUnit;
 
 public class TimerDialog extends BaseBottomSheetDialog implements Timer.Callback {
 
+    private final StringBuilder builder;
+    private final Formatter formatter;
     private DialogTimerBinding binding;
-    private StringBuilder builder;
-    private Formatter formatter;
-
-    public static TimerDialog create() {
-        return new TimerDialog();
-    }
 
     public TimerDialog() {
         builder = new StringBuilder();
         formatter = new Formatter(builder, Locale.getDefault());
+    }
+
+    public static TimerDialog create() {
+        return new TimerDialog();
     }
 
     public void show(FragmentActivity activity) {

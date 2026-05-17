@@ -1,8 +1,8 @@
 [versions]
-agp = "9.1.1"
+agp = "9.2.1"
 python = "17.0.0"
 minSdk = "24"
-targetSdk = "28"
+targetSdk = "37"
 compileSdk = "37"
 
 annotation = "1.10.0"
@@ -11,7 +11,8 @@ biometric = "1.1.0"
 desugar = "2.1.5"
 leanback = "1.2.0"
 lifecycleService = "2.10.0"
-media = "1.7.1"
+media = "1.8.0"
+palette = "1.0.0"
 preference = "1.2.1"
 recyclerview = "1.4.0"
 room = "2.8.4"
@@ -34,7 +35,7 @@ jupnp = "3.0.4"
 juniversalchardet = "1.0.3"
 logger = "2.2.0"
 lottie = "6.7.1"
-material = "1.14.0-beta01"
+material = "1.14.0"
 materialdesigncolors = "1.0.0"
 nanohttpd = "2.3.1"
 newpipeextractor = "v0.26.1"
@@ -57,6 +58,7 @@ desugar = { group = "com.android.tools", name = "desugar_jdk_libs_nio", version.
 leanback = { group = "androidx.leanback", name = "leanback", version.ref = "leanback" }
 lifecycle-service = { group = "androidx.lifecycle", name = "lifecycle-service", version.ref = "lifecycleService" }
 media = { group = "androidx.media", name = "media", version.ref = "media" }
+palette = { group = "androidx.palette", name = "palette", version.ref = "palette" }
 preference = { group = "androidx.preference", name = "preference", version.ref = "preference" }
 recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }

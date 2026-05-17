@@ -16,8 +16,8 @@ android {
         applicationId "com.fongmi.android.tv"
         minSdk libs.versions.minSdk.get().toInteger()
         targetSdk libs.versions.targetSdk.get().toInteger()
-        versionCode 544
-        versionName "5.4.4"
+        versionCode 549
+        versionName "5.4.9"
         javaCompileOptions {
             annotationProcessorOptions {
                 arguments = ["room.schemaLocation": "$projectDir/schemas".toString(), "eventBusIndex": "com.fongmi.android.tv.event.EventIndex"]
@@ -107,6 +107,7 @@ dependencies {
     implementation libs.appcompat
     implementation libs.lifecycle.service
     implementation libs.media
+    implementation libs.palette
     implementation libs.recyclerview
     implementation libs.room.runtime
     implementation libs.splashscreen

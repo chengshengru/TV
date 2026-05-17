@@ -6,6 +6,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
+import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Bundle;
@@ -40,8 +41,8 @@ import com.bumptech.glide.request.transition.Transition;
 import com.fongmi.android.tv.App;
 import com.fongmi.android.tv.Constant;
 import com.fongmi.android.tv.R;
-import com.fongmi.android.tv.api.SiteApi;
 import com.fongmi.android.tv.api.DanmakuApi;
+import com.fongmi.android.tv.api.SiteApi;
 import com.fongmi.android.tv.api.config.VodConfig;
 import com.fongmi.android.tv.bean.CastVideo;
 import com.fongmi.android.tv.bean.Danmaku;
@@ -98,7 +99,6 @@ import com.fongmi.android.tv.utils.Task;
 import com.fongmi.android.tv.utils.Timer;
 import com.fongmi.android.tv.utils.Traffic;
 import com.fongmi.android.tv.utils.Util;
-import com.github.bassaer.library.MDColor;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 
 import org.greenrobot.eventbus.Subscribe;
@@ -289,7 +289,6 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     protected void initView(Bundle savedInstanceState) {
         super.initView(savedInstanceState);
         ViewCompat.setOnApplyWindowInsetsListener(mBinding.getRoot(), (v, insets) -> setStatusBar(insets));
-        mBinding.swipeLayout.setColorSchemeResources(R.color.accent);
         mKeyDown = CustomKeyDown.create(this, mBinding.exo);
         mFrameParams = mBinding.video.getLayoutParams();
         mBinding.progressLayout.showProgress();
@@ -510,7 +509,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         view.setText(Sniffer.buildClickable(resId > 0 ? getString(resId, text) : text, this::clickableSpan), TextView.BufferType.SPANNABLE);
         view.setVisibility(text.isEmpty() ? View.GONE : View.VISIBLE);
         if (view == mBinding.content) setContentVisible();
-        view.setLinkTextColor(MDColor.YELLOW_500);
+        view.setLinkTextColor(Color.WHITE);
         CustomMovement.bind(view);
     }
 
@@ -547,6 +546,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void setPlayer(Result result) {
+        if (isFinishing() || isDestroyed()) return;
         mQualityAdapter.addAll(result);
         setUseParse(result.shouldUseParse());
         mBinding.swipeLayout.setRefreshing(false);
@@ -557,13 +557,16 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
         if (result.hasDesc()) setText(mBinding.content, 0, result.getDesc());
         mBinding.control.parse.setVisibility(isUseParse() ? View.VISIBLE : View.GONE);
         startPlayer(getHistoryKey(), result, isUseParse(), getSite().getTimeout(), buildMetadata());
-        if (DanmakuApi.canSearch()) DanmakuApi.search(mHistory.getVodName(), getEpisode().getName(), danmaku -> player().setDanmaku(danmaku));
+        if (DanmakuApi.canSearch()) DanmakuApi.search(mHistory.getVodName(), getEpisode().getName(), danmaku -> {
+            if (DanmakuSetting.isSpiderFirst() && !result.getDanmaku().isEmpty()) player().addDanmaku(danmaku);
+            else player().setDanmaku(danmaku);
+        });
     }
 
     @Override
     public void onItemClick(Flag item) {
-        if (item.isActivated()) return;
-        mFlagAdapter.setActivated(item);
+        if (item.isSelected()) return;
+        mFlagAdapter.setSelected(item);
         scrollToPosition(mBinding.flag, mFlagAdapter.getPosition());
         setEpisodeAdapter(item.getEpisodes());
         setQualityVisible(false);
@@ -614,8 +617,8 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void seamless(Flag flag) {
         Episode episode = flag.find(mHistory.getVodRemarks(), getMark().isEmpty());
-        setQualityVisible(episode != null && episode.isActivated() && mQualityAdapter.getItemCount() > 1);
-        if (episode == null || episode.isActivated()) return;
+        setQualityVisible(episode != null && episode.isSelected() && mQualityAdapter.getItemCount() > 1);
+        if (episode == null || episode.isSelected()) return;
         mHistory.setVodRemarks(episode.getName());
         onItemClick(episode);
     }
@@ -678,7 +681,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private void onInfo() {
-        InfoDialog.create(this).title(mBinding.control.title.getText()).headers(player().getHeaders()).url(player().getUrl()).show();
+        InfoDialog.create().title(mBinding.control.title.getText()).headers(player().getHeaders()).url(player().getUrl()).show(this);
     }
 
     private void onKeep() {
@@ -703,14 +706,14 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     private void checkNext(boolean notify) {
         setR1Callback();
         Episode item = mEpisodeAdapter.getNext();
-        if (!item.isActivated()) onItemClick(item);
+        if (!item.isSelected()) onItemClick(item);
         else if (notify) Notify.show(R.string.error_play_next);
     }
 
     private void checkPrev() {
         setR1Callback();
         Episode item = mEpisodeAdapter.getPrev();
-        if (!item.isActivated()) onItemClick(item);
+        if (!item.isSelected()) onItemClick(item);
         else Notify.show(R.string.error_play_prev);
     }
 
@@ -755,12 +758,12 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
 
     private void onRepeat() {
         player().setRepeatOne(!player().isRepeatOne());
-        mBinding.control.action.repeat.setActivated(player().isRepeatOne());
+        mBinding.control.action.repeat.setSelected(player().isRepeatOne());
     }
 
     @Override
     public void onRepeatModeChanged(int repeatMode) {
-        mBinding.control.action.repeat.setActivated(player().isRepeatOne());
+        mBinding.control.action.repeat.setSelected(player().isRepeatOne());
     }
 
     private void onScale() {
@@ -880,7 +883,7 @@ public class VideoActivity extends PlaybackActivity implements Clock.Callback, C
     }
 
     private boolean shouldEnterFullscreen(Episode item) {
-        boolean enter = !isFullscreen() && item.isActivated();
+        boolean enter = !isFullscreen() && item.isSelected();
         if (enter) enterFullscreen();
         return enter;
     }

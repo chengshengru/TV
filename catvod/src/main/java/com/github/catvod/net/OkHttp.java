@@ -67,7 +67,7 @@ public class OkHttp {
 
     public static OkAuthenticator authenticator() {
         if (get().authenticator != null) return get().authenticator;
-        return get().authenticator = new OkAuthenticator();
+        return get().authenticator = new OkAuthenticator(selector());
     }
 
     public static OkProxySelector selector() {
@@ -227,7 +227,6 @@ public class OkHttp {
         cancelAll();
         dns().clear();
         selector().clear();
-        authenticator().clear();
         authInterceptor().clear();
         requestInterceptor().clear();
         responseInterceptor().clear();
