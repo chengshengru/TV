@@ -16,8 +16,12 @@ public class Word {
     private List<Data> data;
 
     public static Word objectFrom(String str) {
-        Word word = App.gson().fromJson(str, Word.class);
-        return word == null ? new Word() : word.trans();
+        try {
+            Word word = App.gson().fromJson(str, Word.class);
+            return word == null ? new Word() : word.trans();
+        } catch (Exception e) {
+            return new Word();
+        }
     }
 
     public Word trans() {

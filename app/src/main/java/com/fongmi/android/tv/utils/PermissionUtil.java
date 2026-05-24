@@ -19,12 +19,12 @@ public class PermissionUtil {
 
     public static void requestFile(FragmentActivity activity, Consumer<Boolean> callback) {
         if (Setting.hasFileManager()) PermissionX.init(activity).permissions().requestManageExternalStoragePermissionNow(new PermissionCallback(callback));
-        else PermissionX.init(activity).permissions(Manifest.permission.WRITE_EXTERNAL_STORAGE).request(new PermissionCallback(callback));
+        else PermissionX.init(activity).permissions(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE).request(new PermissionCallback(callback));
     }
 
     public static void requestFile(Fragment fragment, Consumer<Boolean> callback) {
         if (Setting.hasFileManager()) PermissionX.init(fragment).permissions().requestManageExternalStoragePermissionNow(new PermissionCallback(callback));
-        else PermissionX.init(fragment).permissions(Manifest.permission.WRITE_EXTERNAL_STORAGE).request(new PermissionCallback(callback));
+        else PermissionX.init(fragment).permissions(Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE).request(new PermissionCallback(callback));
     }
 
     public static void requestNotify(FragmentActivity activity) {

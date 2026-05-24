@@ -22,8 +22,8 @@ public class CustomScroller extends RecyclerView.OnScrollListener {
 
     @Override
     public void onScrollStateChanged(@NonNull RecyclerView view, int newState) {
-        if (isDisable() || isLoading() || newState != RecyclerView.SCROLL_STATE_IDLE) return;
-        if (isBottom(view)) callback.onLoadMore(String.valueOf(++page));
+        if (newState != RecyclerView.SCROLL_STATE_IDLE || !isBottom(view)) return;
+        loadMore();
     }
 
     private boolean isBottom(RecyclerView view) {
@@ -32,12 +32,22 @@ public class CustomScroller extends RecyclerView.OnScrollListener {
         return lastChild != null && view.getLayoutManager().getPosition(lastChild) == view.getLayoutManager().getItemCount() - 1;
     }
 
-    public void reset() {
-        page = 1;
+    public void checkMore() {
+        loadMore();
     }
 
-    public int addPage() {
-        return ++page;
+    private void loadMore() {
+        if (isDisable() || isLoading() || callback == null) return;
+        if (callback.onLoadMore(String.valueOf(page + 1))) {
+            page++;
+            setLoading(true);
+        }
+    }
+
+    public void reset() {
+        loading = false;
+        enable = true;
+        page = 1;
     }
 
     public boolean first() {
@@ -48,7 +58,7 @@ public class CustomScroller extends RecyclerView.OnScrollListener {
         return loading;
     }
 
-    public void setLoading(boolean loading) {
+    private void setLoading(boolean loading) {
         this.loading = loading;
     }
 
@@ -67,6 +77,6 @@ public class CustomScroller extends RecyclerView.OnScrollListener {
     }
 
     public interface Callback {
-        void onLoadMore(String page);
+        boolean onLoadMore(String page);
     }
 }

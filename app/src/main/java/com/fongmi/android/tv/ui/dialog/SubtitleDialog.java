@@ -89,8 +89,7 @@ public final class SubtitleDialog extends BaseBottomSheetDialog {
     private void onReset(View view) {
         PlayerSetting.putSubtitleTextSize(0.0f);
         PlayerSetting.putSubtitlePosition(0.0f);
-        subtitleView.setBottomPosition(0.0f);
-        subtitleView.setUserDefaultTextSize();
+        subtitleView.reset();
     }
 
     @Override

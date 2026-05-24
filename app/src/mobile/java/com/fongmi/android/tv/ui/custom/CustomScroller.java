@@ -20,17 +20,27 @@ public class CustomScroller extends RecyclerView.OnScrollListener {
 
     @Override
     public void onScrolled(@NonNull RecyclerView view, int dx, int dy) {
-        if (isDisable() || isLoading() || view.getScrollState() == RecyclerView.SCROLL_STATE_IDLE || callback == null) return;
-        if (!view.canScrollVertically(1) && dy > 0) callback.onLoadMore(String.valueOf(++page));
+        if (view.getScrollState() == RecyclerView.SCROLL_STATE_IDLE || view.canScrollVertically(1) || dy <= 0) return;
+        loadMore();
+    }
+
+    public void checkMore(RecyclerView view) {
+        if (view != null && view.canScrollVertically(1)) return;
+        loadMore();
+    }
+
+    private void loadMore() {
+        if (isDisable() || isLoading() || callback == null) return;
+        if (callback.onLoadMore(String.valueOf(page + 1))) {
+            page++;
+            setLoading(true);
+        }
     }
 
     public void reset() {
+        loading = false;
         enable = true;
         page = 1;
-    }
-
-    public int addPage() {
-        return ++page;
     }
 
     public boolean first() {
@@ -45,7 +55,7 @@ public class CustomScroller extends RecyclerView.OnScrollListener {
         return loading;
     }
 
-    public void setLoading(boolean loading) {
+    private void setLoading(boolean loading) {
         this.loading = loading;
     }
 
@@ -64,6 +74,6 @@ public class CustomScroller extends RecyclerView.OnScrollListener {
     }
 
     public interface Callback {
-        void onLoadMore(String page);
+        boolean onLoadMore(String page);
     }
 }

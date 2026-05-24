@@ -14,7 +14,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatDialogFragment;
 import androidx.viewbinding.ViewBinding;
 
-import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Util;
 import com.google.android.material.sidesheet.SideSheetDialog;
 
@@ -22,9 +21,7 @@ public abstract class BaseSideSheetDialog extends AppCompatDialogFragment {
 
     protected abstract ViewBinding getBinding(@NonNull LayoutInflater inflater, @Nullable ViewGroup container);
 
-    protected int getWidth() {
-        return Math.min(ResUtil.dp2px(420), ResUtil.getScreenWidth() / 2);
-    }
+    protected abstract int getWidth();
 
     @NonNull
     @Override

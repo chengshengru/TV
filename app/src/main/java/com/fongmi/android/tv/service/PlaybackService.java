@@ -520,7 +520,7 @@ public class PlaybackService extends MediaLibraryService implements MediaLibrary
         saveProgress();
         return Task.executor().submit(() -> {
             List<MediaItem> resolved = mediaItems.stream().map(BrowseTree::resolveOrKeep).toList();
-            int index = Math.max(startIndex, 0);
+            int index = resolved.isEmpty() ? 0 : Math.min(Math.max(startIndex, 0), resolved.size() - 1);
             long position = BrowseTree.consumeResumePosition();
             return new MediaSession.MediaItemsWithStartPosition(resolved, index, position);
         });

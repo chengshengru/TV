@@ -10,77 +10,87 @@ import androidx.fragment.app.FragmentActivity;
 import androidx.fragment.app.FragmentManager;
 import androidx.viewbinding.ViewBinding;
 
-import com.fongmi.android.tv.databinding.DialogDanmakuSettingBinding;
+import com.fongmi.android.tv.databinding.DialogOffsetBinding;
 import com.fongmi.android.tv.player.PlayerManager;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Util;
 
-public final class DanmakuSettingDialog {
+public final class OffsetDialog {
 
     private PlayerManager player;
+    private int type;
 
-    public static DanmakuSettingDialog create() {
-        return new DanmakuSettingDialog();
+    public static OffsetDialog create() {
+        return new OffsetDialog();
     }
 
-    public DanmakuSettingDialog player(PlayerManager player) {
+    public OffsetDialog player(PlayerManager player) {
         this.player = player;
+        return this;
+    }
+
+    public OffsetDialog type(int type) {
+        this.type = type;
         return this;
     }
 
     public void show(FragmentActivity activity) {
         FragmentManager manager = activity.getSupportFragmentManager();
-        for (Fragment fragment : manager.getFragments()) if (fragment instanceof BottomSheet || fragment instanceof SideSheet) return;
-        if (Util.isFullscreenLand(activity) || Util.isLeanback()) new SideSheet(player).show(manager, null);
-        else new BottomSheet(player).show(manager, null);
+        for (Fragment f : manager.getFragments()) if (f instanceof BottomSheet || f instanceof SideSheet) return;
+        if (Util.isFullscreenLand(activity) || Util.isLeanback()) new SideSheet(player, type).show(manager, null);
+        else new BottomSheet(player, type).show(manager, null);
     }
 
-    private static DialogDanmakuSettingBinding inflate(LayoutInflater inflater, ViewGroup container) {
-        return DialogDanmakuSettingBinding.inflate(inflater, container, false);
+    private static DialogOffsetBinding inflate(LayoutInflater inflater, ViewGroup container) {
+        return DialogOffsetBinding.inflate(inflater, container, false);
     }
 
     public static final class BottomSheet extends BaseBottomSheetDialog {
 
-        private DialogDanmakuSettingBinding binding;
+        private DialogOffsetBinding binding;
         private final PlayerManager player;
+        private final int type;
 
-        BottomSheet(PlayerManager player) {
+        BottomSheet(PlayerManager player, int type) {
             this.player = player;
+            this.type = type;
         }
 
         @Override
         protected ViewBinding getBinding(@NonNull LayoutInflater inflater, @Nullable ViewGroup container) {
-            return binding = DanmakuSettingDialog.inflate(inflater, container);
+            return binding = OffsetDialog.inflate(inflater, container);
         }
 
         @Override
         protected void initView() {
-            new DanmakuSettingPanel(binding, player).bind();
+            new OffsetPanel(binding, player, type).bind();
         }
     }
 
     public static final class SideSheet extends BaseSideSheetDialog {
 
-        private DialogDanmakuSettingBinding binding;
+        private DialogOffsetBinding binding;
         private final PlayerManager player;
+        private final int type;
 
-        SideSheet(PlayerManager player) {
+        SideSheet(PlayerManager player, int type) {
             this.player = player;
+            this.type = type;
         }
 
         @Override
         protected int getWidth() {
-            return Math.min(ResUtil.dp2px(420), ResUtil.getScreenWidth() / 2);
+            return Math.min(ResUtil.dp2px(320), ResUtil.getScreenWidth() / 2);
         }
 
         @Override
         protected ViewBinding getBinding(@NonNull LayoutInflater inflater, @Nullable ViewGroup container) {
-            return binding = DanmakuSettingDialog.inflate(inflater, container);
+            return binding = OffsetDialog.inflate(inflater, container);
         }
 
         @Override
         protected void initView() {
-            new DanmakuSettingPanel(binding, player).bind();
+            new OffsetPanel(binding, player, type).bind();
         }
     }
 }

@@ -9,6 +9,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 
+import androidx.media3.common.C;
 import androidx.media3.common.Format;
 import androidx.media3.common.MimeTypes;
 import androidx.media3.common.util.Util;
@@ -46,9 +47,16 @@ public class PlayerHelper {
     public static String describeFormat(Format format) {
         StringJoiner joiner = new StringJoiner(",");
         if (format.id != null) joiner.add(format.id);
+        if (format.label != null) joiner.add(format.label);
         if (format.codecs != null) joiner.add(format.codecs);
+        if (format.language != null) joiner.add(format.language);
         if (format.sampleMimeType != null) joiner.add(format.sampleMimeType);
         if (format.containerMimeType != null) joiner.add(format.containerMimeType);
+        if (format.width != C.LENGTH_UNSET) joiner.add(String.valueOf(format.width));
+        if (format.height != C.LENGTH_UNSET) joiner.add(String.valueOf(format.height));
+        if (format.sampleRate != C.RATE_UNSET_INT) joiner.add(String.valueOf(format.sampleRate));
+        if (format.channelCount != C.LENGTH_UNSET) joiner.add(String.valueOf(format.channelCount));
+        if (format.averageBitrate != C.LENGTH_UNSET) joiner.add(String.valueOf(format.averageBitrate));
         return joiner.toString();
     }
 

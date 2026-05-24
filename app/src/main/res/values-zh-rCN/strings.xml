@@ -50,6 +50,9 @@
     <string name="play_track_text">字幕</string>
     <string name="play_track_audio">音轨</string>
     <string name="play_track_video">视轨</string>
+    <string name="offset_text">字幕偏移</string>
+    <string name="offset_audio">音轨偏移</string>
+    <string name="offset_setting">偏移设置</string>
     <string name="play_forward_hint">已切换正序播放</string>
     <string name="play_backward_hint">已切换倒序播放</string>
     <string name="play_ready">准备播放：<xliff:g name="name">%s</xliff:g></string>

@@ -162,12 +162,12 @@ public class CollectFragment extends BaseFragment implements MenuProvider, Colle
     }
 
     @Override
-    public void onLoadMore(String page) {
+    public boolean onLoadMore(String page) {
         Collect activated = mCollectAdapter.getActivated();
-        if ("all".equals(activated.getSite().getKey())) return;
+        if ("all".equals(activated.getSite().getKey())) return false;
         mViewModel.searchContent(activated.getSite(), getKeyword(), false, page);
         activated.setPage(Integer.parseInt(page));
-        mScroller.setLoading(true);
+        return true;
     }
 
     @Override

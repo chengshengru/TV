@@ -50,6 +50,9 @@
     <string name="play_track_text">Text</string>
     <string name="play_track_audio">Audio</string>
     <string name="play_track_video">Video</string>
+    <string name="offset_text">Text offset</string>
+    <string name="offset_audio">Audio offset</string>
+    <string name="offset_setting">Offset settings</string>
     <string name="play_forward_hint">Normal play switched</string>
     <string name="play_backward_hint">Reverse play switched</string>
     <string name="play_ready">Ready to play: <xliff:g name="name">%s</xliff:g></string>

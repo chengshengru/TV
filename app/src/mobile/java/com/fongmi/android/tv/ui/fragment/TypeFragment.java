@@ -160,8 +160,8 @@ public class TypeFragment extends BaseFragment implements CustomScroller.Callbac
 
     private void checkMore() {
         mBinding.recycler.post(() -> {
-            if (mScroller.isDisable() || mBinding.recycler.canScrollVertically(1) || mBinding.recycler.getScrollState() != 0 || isHome()) return;
-            getVideo(getTypeId(), String.valueOf(mScroller.addPage()));
+            if (isHome()) return;
+            mScroller.checkMore(mBinding.recycler);
         });
     }
 
@@ -182,10 +182,10 @@ public class TypeFragment extends BaseFragment implements CustomScroller.Callbac
     }
 
     @Override
-    public void onLoadMore(String page) {
-        if (isHome()) return;
-        mScroller.setLoading(true);
+    public boolean onLoadMore(String page) {
+        if (isHome()) return false;
         getVideo(getTypeId(), page);
+        return true;
     }
 
     @Override
