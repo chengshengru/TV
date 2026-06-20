@@ -83,7 +83,7 @@ public class Source {
         Extractor extractor = getExtractor(uri);
         if (extractor != null) result.setParse(0);
         if (extractor instanceof Video) result.setParse(1);
-        return extractor == null ? url : extractor.fetch(url);
+        return extractor == null ? url : extractor.fetch(result);
     }
 
     public void stop() {
@@ -97,6 +97,10 @@ public class Source {
     }
 
     public interface Extractor {
+
+        default String fetch(Result result) throws Exception {
+            return fetch(result.getUrl().v());
+        }
 
         String fetch(String url) throws Exception;
 

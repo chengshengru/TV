@@ -34,6 +34,15 @@ public class Sub {
         return sub;
     }
 
+    public static Sub create(String name, String url, String lang, String format) {
+        Sub sub = new Sub();
+        sub.name = name;
+        sub.url = url;
+        sub.lang = lang;
+        sub.format = format;
+        return sub;
+    }
+
     public String getUrl() {
         return TextUtils.isEmpty(url) ? "" : url;
     }
@@ -52,6 +61,18 @@ public class Sub {
 
     public int getFlag() {
         return flag == 0 ? C.SELECTION_FLAG_DEFAULT : flag;
+    }
+
+    public int getRawFlag() {
+        return flag;
+    }
+
+    public boolean isForced() {
+        return (flag & C.SELECTION_FLAG_FORCED) != 0;
+    }
+
+    public void setFlag(int flag) {
+        this.flag = flag;
     }
 
     public void trans() {
