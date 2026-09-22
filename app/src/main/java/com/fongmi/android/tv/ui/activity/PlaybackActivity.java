@@ -28,7 +28,7 @@ import androidx.media3.ui.PlayerSeekView;
 import androidx.media3.ui.PlayerView;
 import androidx.media3.ui.TimeBar;
 import androidx.media3.ui.danmaku.DanmakuConfig;
-import androidx.media3.ui.danmaku.DanmakuPlayerViewController;
+import androidx.media3.ui.danmaku.DanmakuController;
 
 import com.fongmi.android.tv.R;
 import com.fongmi.android.tv.bean.Result;
@@ -51,7 +51,7 @@ import java.util.concurrent.TimeUnit;
 
 public abstract class PlaybackActivity extends BaseActivity implements MediaController.Listener, Player.Listener, ServiceConnection {
 
-    private final DanmakuPlayerViewController danmakuController = new DanmakuPlayerViewController();
+    private final DanmakuController danmakuController = new DanmakuController();
     private final List<ServiceReadyObserver<?>> serviceReadyObservers = new ArrayList<>();
     private final List<Runnable> foreverObserverRemovers = new ArrayList<>();
     private ListenableFuture<MediaController> mControllerFuture;
@@ -411,7 +411,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
 
     private void syncPlayerView(Player player) {
         player().bindPlayerView(getPlayerView());
-        danmakuController.bind(getPlayerView());
+        danmakuController.setPlayer(player);
         getPlayerView().setPlayer(player);
         syncDanmakuSource();
         restoreDebugView();
@@ -623,7 +623,7 @@ public abstract class PlaybackActivity extends BaseActivity implements MediaCont
     protected void onDestroy() {
         clearObservers();
         detachPlayerView();
-        danmakuController.close();
+        danmakuController.release();
         super.onDestroy();
         releasePlaybackService();
     }
