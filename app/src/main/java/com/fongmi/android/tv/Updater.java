@@ -22,11 +22,11 @@ import java.io.File;
 
 public class Updater implements Download.Callback, UpdateListener {
 
-    private final Download download;
+    private Download download;
     private UpdateDialog dialog;
+    private String apk;
 
     private Updater() {
-        this.download = Download.create(getApk(), getFile());
     }
 
     public static Updater create() {
@@ -42,6 +42,9 @@ public class Updater implements Download.Callback, UpdateListener {
     }
 
     private String getApk() {
+        if (apk != null && !apk.isEmpty()) {
+            return apk.replace("{flavor}", BuildConfig.FLAVOR).replace("{abi}", android.os.Process.is64Bit() ? "arm64_v8a" : "armeabi_v7a");
+        }
         return Github.getApk(BuildConfig.FLAVOR + "-" + (android.os.Process.is64Bit() ? "arm64_v8a" : "armeabi_v7a"));
     }
 
@@ -63,6 +66,8 @@ public class Updater implements Download.Callback, UpdateListener {
             String desc = object.optString("desc");
             int code = object.optInt("code");
             if (code <= BuildConfig.VERSION_CODE) return;
+            String url = object.optString("url");
+            if (!url.isEmpty()) apk = url;
             App.post(() -> show(activity, name, desc));
         } catch (Exception e) {
             e.printStackTrace();
@@ -71,19 +76,20 @@ public class Updater implements Download.Callback, UpdateListener {
 
     private void show(FragmentActivity activity, String version, String desc) {
         dismiss();
+        download = Download.create(getApk(), getFile());
         dialog = UpdateDialog.create().title(ResUtil.getString(R.string.update_version, version)).desc(desc).listener(this).show(activity);
     }
 
     @Override
     public void onConfirm(View view) {
         view.setEnabled(false);
-        download.start(this);
+        if (download != null) download.start(this);
     }
 
     @Override
     public void onCancel(View view) {
         Setting.putUpdate(false);
-        download.cancel();
+        if (download != null) download.cancel();
         dismiss();
     }
 
