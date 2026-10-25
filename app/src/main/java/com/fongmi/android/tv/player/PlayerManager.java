@@ -518,6 +518,7 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void start(PlaySpec spec, long timeout, long startPositionMs) {
+        resetRepeatForNewContent();
         this.spec = spec;
         setMediaItem(timeout, startPositionMs);
     }
@@ -527,6 +528,7 @@ public class PlayerManager implements ParseCallback {
     }
 
     public void parse(String key, Result result, boolean useParse, MediaMetadata metadata, long startPositionMs) {
+        resetRepeatForNewContent();
         stopParse();
         pendingStartPositionMs = startPositionMs;
         spec = PlaySpec.fromParse(result, key, metadata);
@@ -601,6 +603,22 @@ public class PlayerManager implements ParseCallback {
     public void onParseError() {
         pendingStartPositionMs = C.TIME_UNSET;
         callback.onError(ResUtil.getString(R.string.error_play_parse));
+    }
+
+    /**
+     * 开始新的播放内容前复位单集循环模式。
+     *
+     * <p>单集循环会让播放器在片尾重载同一媒体，而不是上报
+     * {@link Player#STATE_ENDED}；该状态挂在常驻的 PlaybackService 播放器实例上，
+     * 一旦跨内容残留，后续内容播完就拿不到 {@link Player#STATE_ENDED}，自动连播永久失效。
+     * 因此在所有「重新开始播放」的入口统一复位（含切集、换源、切换清晰度）；
+     * 解码重试等内部重载走 {@link #startCurrent()}，不经过本方法，不受影响。</p>
+     */
+    private void resetRepeatForNewContent() {
+        if (player == null) return;
+        if (!player.isCommandAvailable(Player.COMMAND_SET_REPEAT_MODE)) return;
+        if (player.getRepeatMode() == Player.REPEAT_MODE_OFF) return;
+        player.setRepeatMode(Player.REPEAT_MODE_OFF);
     }
 
     public interface Callback {
