@@ -14,7 +14,7 @@ public class Github {
      * <p>
      * APK 体积 80~93 MiB，超过 Pages 单文件 25 MiB 上限，故与清单分开托管。
      */
-    public static final String APK = "https://REPLACE-WITH-R2-DOMAIN/Release/android";
+    public static final String APK = "https://pub-8198366a932249098157e9d7ef20af6a.r2.dev/Release/android";
 
     public static String getJson(String name) {
         return URL + "/" + name + ".json";
