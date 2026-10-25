@@ -289,7 +289,9 @@ protected void resetRepeatMode() {
 
 ### 方案四：为 MPV 引擎补齐 `STATE_ENDED`（防 G1，条件触发）
 
-若经日志确认使用的是 MPV 引擎且不上报结束，需在 `MpvPlayerEngine` 内于播放完成回调中主动触发 `Player.Listener.onPlaybackStateChanged(Player.STATE_ENDED)`。
+> 已核实（2026-10-25）：上游 MPV 库（[chengshengru/media @ release-1.11.0-fongmi-libass](https://github.com/chengshengru/media/tree/release-1.11.0-fongmi-libass)）在真实 EOF 时会正常产生 `STATE_ENDED`，无需包装补发。RC-4 修正为「重复模式跨集粘连导致所有引擎都不产生 ENDED」，修复方案见 [MPV引擎STATE_ENDED补齐开发设计文档.md](./MPV引擎STATE_ENDED补齐开发设计文档.md)。
+
+若经日志确认使用的是 MPV 引擎、`repeatMode` 为 `REPEAT_MODE_OFF` 且仍不上报结束，才需在 `MpvPlayerEngine` 内于播放完成回调中主动触发 `Player.Listener.onPlaybackStateChanged(Player.STATE_ENDED)`。
 
 ---
 
