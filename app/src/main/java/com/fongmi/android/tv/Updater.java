@@ -26,7 +26,6 @@ import com.github.catvod.utils.Prefers;
 import com.github.catvod.utils.RuntimeModule;
 import com.github.catvod.utils.Task;
 
-import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.Closeable;
@@ -38,6 +37,9 @@ import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+
+import okhttp3.Request;
+import okhttp3.Response;
 
 public class Updater {
 
@@ -137,27 +139,48 @@ public class Updater {
     private void checkRelease() {
         try {
             String abi = Process.is64Bit() ? "arm64_v8a" : "armeabi_v7a";
-            String filename = BuildConfig.FLAVOR + "-" + abi + ".apk";
-            JSONObject release = Github.getUpdate(new JSONArray(OkHttp.string(Github.getReleases())), BuildConfig.VERSION_NAME, filename);
-            if (release == null) {
+            String filename = BuildConfig.FLAVOR + "-" + abi;
+            String text = OkHttp.string(Github.getUpdateManifest(filename));
+            if (text.isEmpty()) {
                 App.post(() -> checking = false);
                 return;
             }
-            prepareRelease(release, filename);
+            JSONObject manifest = new JSONObject(text);
+            if (manifest.optInt("code") <= BuildConfig.VERSION_CODE) {
+                App.post(() -> checking = false);
+                return;
+            }
+            prepareRelease(manifest, filename, abi);
         } catch (Exception e) {
             e.printStackTrace();
             App.post(() -> checking = false);
         }
     }
 
-    private void prepareRelease(JSONObject release, String filename) throws IOException {
-        String tag = release.optString("tag_name");
-        String name = tag.startsWith("v") ? tag.substring(1) : tag;
-        String desc = Github.getNotes(release.optString("body"), BuildConfig.FLAVOR);
-        JSONObject asset = Github.getAsset(release, filename);
-        UpdatePackage update = new UpdatePackage(name, asset.optString("browser_download_url"), asset.optLong("size"), asset.isNull("digest") ? "" : asset.optString("digest"));
+    private void prepareRelease(JSONObject manifest, String filename, String abi) throws IOException {
+        String name = manifest.optString("name");
+        String url = manifest.optString("url");
+        if (name.isEmpty()) name = BuildConfig.VERSION_NAME;
+        if (url.isEmpty()) url = Github.getUpdateApk(filename);
+        else url = url.replace("{flavor}", BuildConfig.FLAVOR).replace("{abi}", abi);
+        long size = manifest.optLong("size", 0);
+        if (size <= 0) size = getContentLength(url);
+        if (size <= 0) throw new IOException("Invalid update size");
+        String digest = manifest.optString("digest", "");
+        if (!digest.isEmpty() && !digest.startsWith("sha256:")) digest = "sha256:" + digest;
+        String desc = manifest.optString("desc", "");
+        UpdatePackage update = new UpdatePackage(name, url, size, digest);
         File cached = verifyCachedApk(update);
         App.post(() -> onReleaseChecked(update, desc, cached));
+    }
+
+    private long getContentLength(String url) throws IOException {
+        Request request = new Request.Builder().url(url).head().build();
+        try (Response response = OkHttp.client().newCall(request).execute()) {
+            if (!response.isSuccessful()) throw new IOException("Update HTTP " + response.code());
+            String value = response.header("Content-Length");
+            return value == null ? 0 : Long.parseLong(value);
+        }
     }
 
     private void onReleaseChecked(UpdatePackage update, String desc, File cached) {

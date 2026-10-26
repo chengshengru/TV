@@ -6,6 +6,8 @@ import org.json.JSONObject;
 public class Github {
 
     private static final String REPO = "FongMi/Release";
+    private static final String UPDATE_MANIFEST = "https://media-repo.pages.dev/Release/android";
+    private static final String UPDATE_APK = "https://pub-8198366a932249098157e9d7ef20af6a.r2.dev/Release/android";
 
     public static String getReleases() {
         return "https://api.github.com/repos/" + REPO + "/releases?per_page=100";
@@ -81,5 +83,25 @@ public class Github {
             if (asset != null && name.equals(asset.optString("name")) && "uploaded".equals(asset.optString("state"))) return asset;
         }
         return null;
+    }
+
+    /**
+     * 获取自建更新清单地址。
+     *
+     * @param name 清单文件名，格式为 flavor-abi
+     * @return 清单 JSON 的完整地址
+     */
+    public static String getUpdateManifest(String name) {
+        return UPDATE_MANIFEST + "/" + name + ".json";
+    }
+
+    /**
+     * 获取自建安装包地址。
+     *
+     * @param name 安装包文件名，格式为 flavor-abi
+     * @return APK 的完整地址
+     */
+    public static String getUpdateApk(String name) {
+        return UPDATE_APK + "/" + name + ".apk";
     }
 }
