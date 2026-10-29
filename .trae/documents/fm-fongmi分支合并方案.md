@@ -478,3 +478,54 @@ git reset --hard feature/fm-fongmi-5.8.2
 
 1. 自建更新源是否继续使用 `media-repo.pages.dev` 与 R2 直链（对应 11 节第 3 项）。
 2. 运行时模块 `catalog.json` 仍指向上游默认地址 `https://github.com/FongMi/Release/releases/download/module/catalog.json`，需确定是否改由自建源托管，以及 `python`、`nodejs`、`quickjs`、`thunder` 四个模块 APK 的发布位置（对应 11 节第 6 项）。
+
+## 14. 5.8.4 增量合并记录
+
+### 14.1 合并概况
+
+| 项目 | 内容 |
+| --- | --- |
+| 合并目标分支 | `feature/fm-fongmi-5.8.2`（当前分支） |
+| 上游新提交 | 17 个，`aa30eb04..a27ab2680` |
+| 共同基线 | `aa30eb04`，双方为同一基线分叉，无历史交叉 |
+| 合并提交 | `494b0c7fe`，`Merge fm/fongmi 5.8.4 到集成分支` |
+| 冲突 | 无。合并模拟 `git merge-tree` 未返回冲突路径，实际合并直接生成合并提交 |
+| 版本变化 | `versionCode 582 → 584`、`versionName 5.8.2 → 5.8.4`（上游维护，本地未干预） |
+
+### 14.2 上游主要变化
+
+1. 版本号升至 5.8.4，列表项含 5.8.3 与 5.8.4 两次版本提交。
+2. Chaquopy 由 17.1.0 升到 17.2.0，Python 运行时改为“固定本地构件”方式。
+3. 播放体系调整：Exo 音频命令、`PlayerEngine`、`MpvUtil`、`DecodeSetting` 记住解码方式、DRM 与 ClearKey 下一集预加载。
+4. 爬虫体系调整：`PyLoader`、`SpiderLoadException`、`SiteApi`、Python 运行时目录重构（`runtime/loader.py`、`runtime/net.py`、`runtime/dialog.py`）。
+5. 本地字幕发现与 VTT 上传恢复，`LocalSubtitleScanner`、`SubtitleArchive` 更新。
+6. 文档站新增 `playback-commands.ts`、`spider-fields.ts` 等页面。
+
+### 14.3 合并后核对结果
+
+| 定制项 | 结果 |
+| --- | --- |
+| `applicationId` | 仍为 `com.keepsoft.android.tv` |
+| 应用名称 | 三套 `strings.xml` 仍为影视仓 / 影視倉 |
+| 图标与 Banner | `@drawable/app_icon`、`@drawable/app_banner` 引用与资源均在 |
+| 自建更新源 | `Github.getUpdateManifest`、`Github.getUpdateApk`、`Updater.checkRelease`、`prepareRelease`、`getContentLength` 均在，上游本次未改动这两个文件 |
+| 代理测试 | `catvod/src/test/.../OkProxySelectorTest.java` 保留，上游本次未改动 `catvod` |
+| 冲突标记 | `git grep '<<<<<<< '` 无结果 |
+| `git diff --check` | 通过 |
+
+### 14.4 新增构建前置条件（重要）
+
+上游 5.8.4 的 `chaquo/runtime/build.gradle` 会校验 Python 编译器与原生构件的哈希，而相关目录已被 `.gitignore` 排除，构建前必须先生成：
+
+```bash
+# 在项目根目录执行，依赖外网访问 GitHub
+python scripts/sync_python_runtime.py
+```
+
+该脚本会按 [native.lock.json](../../chaquo/runtime/native.lock.json) 从 `FongMi/python-android` 的固定提交下载并校验：
+
+- `chaquo/runtime/wheels/manifest.json` 及各 ABI 的 wheels 包；
+- `chaquo/runtime/native-bundles/` 下的原生构件与 `manifest.json`；
+- 临时目录 `chaquo/runtime/python-sync-*/`。
+
+缺失这些文件时，`chaquo/runtime` 构建会直接抛 `Python native inputs are missing`。因此 13.5 节“构建未执行”的结论同样适用于本次增量合并，且新增了此项前置条件。
