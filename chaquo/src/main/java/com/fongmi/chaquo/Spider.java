@@ -14,6 +14,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
@@ -67,22 +68,34 @@ public class Spider extends com.github.catvod.crawler.Spider {
     }
 
     private void releaseSpider(Throwable failure) {
-        js.close();
-        try {
-            streams.close();
-        } catch (RuntimeException | Error error) {
-            if (error != failure) failure.addSuppressed(error);
-        }
-        try {
-            net.close();
-        } catch (RuntimeException | Error error) {
-            if (error != failure) failure.addSuppressed(error);
-        }
+        closeResources(failure);
         try {
             app.callAttr("release", obj);
         } catch (RuntimeException | Error error) {
             if (error != failure) failure.addSuppressed(error);
         }
+    }
+
+    private Throwable closeResources(Throwable failure) {
+        try {
+            js.close();
+        } catch (RuntimeException | Error error) {
+            if (failure == null) failure = error;
+            else if (error != failure) failure.addSuppressed(error);
+        }
+        try {
+            streams.close();
+        } catch (RuntimeException | Error error) {
+            if (failure == null) failure = error;
+            else if (error != failure) failure.addSuppressed(error);
+        }
+        try {
+            if (net != null) net.close();
+        } catch (RuntimeException | Error error) {
+            if (failure == null) failure = error;
+            else if (error != failure) failure.addSuppressed(error);
+        }
+        return failure;
     }
 
     @Override
@@ -137,10 +150,18 @@ public class Spider extends com.github.catvod.crawler.Spider {
 
     @Override
     public Object[] proxy(Map<String, String> params) throws Exception {
-        List<PyObject> list = app.callAttr("localProxy", obj, GSON.toJson(params)).asList();
+        List<PyObject> list = app.callAttr("proxy", obj, GSON.toJson(params)).asList();
         boolean base64 = list.size() > 4 && list.get(4).toInt() == 1;
         boolean header = list.size() > 3 && list.get(3) != null;
-        return new Object[]{list.get(0).toInt(), list.get(1).toString(), getStream(list.get(2), base64), header ? getHeader(list.get(3)) : null};
+        int status = list.get(0).toInt();
+        String mime = list.get(1).toString();
+        InputStream stream = getStream(list.get(2), base64);
+        try {
+            return new Object[]{status, mime, stream, header ? getHeader(list.get(3)) : null};
+        } catch (RuntimeException | Error error) {
+            closeProxyStream(stream, error);
+            throw error;
+        }
     }
 
     @Override
@@ -165,42 +186,48 @@ public class Spider extends com.github.catvod.crawler.Spider {
 
     @Override
     public void destroy() {
-        js.close();
-        Throwable failure = null;
-        try {
-            streams.close();
-        } catch (RuntimeException | Error error) {
-            failure = error;
-        }
-        try {
-            if (net != null) net.close();
-        } catch (RuntimeException | Error error) {
-            if (failure == null) failure = error;
-            else if (failure != error) failure.addSuppressed(error);
-        }
-        destroyPython(failure);
+        Throwable failure = destroyPython(closeResources(null));
         if (failure instanceof RuntimeException error) throw error;
         if (failure instanceof Error error) throw error;
     }
 
-    private void destroyPython(Throwable failure) {
+    private Throwable destroyPython(Throwable failure) {
         try {
             app.callAttr("destroy", obj);
-        } catch (Exception error) {
-            if (failure != null && failure != error) failure.addSuppressed(error);
-        } catch (Error error) {
-            if (failure == null) throw error;
-            if (failure != error) failure.addSuppressed(error);
+        } catch (RuntimeException | Error error) {
+            if (failure == null) failure = error;
+            else if (failure != error) failure.addSuppressed(error);
         }
+        return failure;
     }
 
     private Map<String, String> getHeader(PyObject obj) {
+        Map<String, String> header = new HashMap<>();
+        for (Map.Entry<PyObject, PyObject> entry : obj.asMap().entrySet()) header.put(headerString(entry.getKey()), headerValue(entry.getValue()));
+        return header;
+    }
+
+    private String headerString(PyObject value) {
+        if (value == null) throw new IllegalArgumentException("Invalid proxy response header");
+        return value.toJava(String.class);
+    }
+
+    private String headerValue(PyObject value) {
         try {
-            Map<String, String> header = new HashMap<>();
-            for (Map.Entry<PyObject, PyObject> entry : obj.asMap().entrySet()) header.put(entry.getKey().toString(), entry.getValue().toString());
-            return header;
-        } catch (Exception e) {
-            return null;
+            return headerString(value);
+        } catch (ClassCastException error) {
+            String[] values = value.toJava(String[].class);
+            for (String part : values) if (part == null) throw new IllegalArgumentException("Invalid proxy response header");
+            return String.join(", ", values);
+        }
+    }
+
+    private void closeProxyStream(InputStream stream, Throwable error) {
+        if (stream == null) return;
+        try {
+            stream.close();
+        } catch (IOException | RuntimeException | Error failure) {
+            if (failure != error) error.addSuppressed(failure);
         }
     }
 

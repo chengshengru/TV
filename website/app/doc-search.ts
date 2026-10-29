@@ -1,7 +1,7 @@
 import { configFieldGroups } from "./config-fields.ts";
 import { methods, networkMethods, objectGroups, resultFields, liveDanmakuFields } from "./spider-fields.ts";
 import { features } from "./feature-content.ts";
-import { playbackProperties } from "./playback-commands.ts";
+import { playbackProperties, playbackCommandGroups } from "./playback-commands.ts";
 import {
   localActions,
   localRemoteControls,
@@ -28,21 +28,21 @@ const entries: Entry[] = [
     title: "爬蟲載入方式",
     description: "Java JAR、Python、QuickJS 的 api 寫法",
     href: "/spider#start",
-    names: ["catvod-api.jar", ":apiJar", "compileOnly"],
-    keywords: "SDK 執行接口",
+    names: ["catvod-api.jar", ":apiJar", "compileOnly", "catvod", "Spider"],
+    keywords: "SDK 執行接口 import export default class extends Spider JavaScript 遷移",
   },
   {
     title: "三語言 Demo",
     description: "Java、Python、QuickJS 範例",
     href: "/spider#demo",
-    names: ["JSONObject", "JSONArray", "self.page", "page", "Response", "Response.page", "com.github.catvod.bean"],
+    names: ["Class", "Vod", "self.page", "page", "Response", "Response.page", "com.github.catvod.bean", "detailContent", "playerContent"],
     keywords: "CatVodSpider examples/python/spider.py examples/javascript/spider.js Demo.java 分頁",
   },
   {
     title: "爬蟲共用網路",
     description: "Java、Python、QuickJS 的 HTTP、串流、Cookie、快取與下載",
     href: "/spider#network",
-    names: [...networkNames("req", "json", "getUserAgent", "getCookie", "setCookie", "session", "batch", "map", "download", "sleep"), "net.http", "net.get", "net.post"],
+    names: [...networkNames("req", "json", "getUserAgent", "getCookie", "setCookie", "session", "batch", "map", "download", "sleep"), "net.get", "net.post"],
     keywords: networkMethods.flat().join(" ") + " self.net stale persist 二進位 POST Content-Type 原始正文 位元組陣列",
   },
   {
@@ -97,13 +97,13 @@ const entries: Entry[] = [
     description: "載入 Java JAR、Python 或 QuickJS，儲存、格式化、重測與版本還原",
     href: "/spider#testing",
     names: ["/spider.html", "爬蟲測試", "格式化", "重測"],
-    keywords: "ext JSON 參數 方法 網路紀錄 上傳 來源 版本 播放結果 Java 編譯",
+    keywords: "ext JSON 參數 方法 homeContent categoryContent detailContent playerContent searchContent params 網路紀錄 上傳 來源 版本 播放結果 Java 編譯",
   },
   {
     title: "Android UI",
     description: "三語言 Dialog、QR Code、表單與 Android 接口",
     href: "/spider#runtime",
-    names: ["com.github.catvod.Runtime", "Runtime.context", "Runtime.activity", "Runtime.toast", "getActivity", "self.getActivity", "dialog", "dialog.show", "self.dialog", "Dialog.Callback", "onAction", "button", "image", "helperText", "cancelable", "enabled", "multiselect"],
+    names: ["com.github.catvod.Runtime", "Runtime.context", "Runtime.activity", "Runtime.toast", "getActivity", "self.getActivity", "dialog", "this.dialog", "self.dialog", "Dialog.Callback", "callback", "button", "image", "helperText", "cancelable", "enabled", "multiselect"],
     keywords: "Application Context Activity Toast Dialog Java Python QuickJS JSONObject dict 同步 回呼 工作執行緒 Promise await 方向鍵 焦點 遙控器 image data URI base64 圖片 helperText 欄位說明 連續對話框 多步驟 qrcode copyable QR Code 二維碼 掃碼 更新 重新取得 文字 複製 textarea select multiselect options label 多行 單選 多選 勾選 下拉 cancelable enabled 停用 inputs buttons values 欄位更新 帶入 重設 清空 close validate required minLength maxLength minItems maxItems label errors 通用表單 非同步 欄位驗證 手機 登入 驗證碼 主執行緒 jclass com.github.catvod.spider.Init",
   },
   {
@@ -207,8 +207,10 @@ const entries: Entry[] = [
   },
   {
     title: "Proxy 回傳",
-    description: "狀態碼、Content-Type、內容、標頭、Base64 與 siteKey 路由",
+    description: "proxyUrl 參數、proxy 回傳與站點路由",
+    names: ["proxyUrl", "proxy"],
     href: "/spider#proxy",
+    keywords: "字串鍵值 null None 空參數 local 本機 區域網路 do siteKey 狀態碼 Content-Type 內容 標頭",
   },
   {
     title: "本地 HTTP API",
@@ -329,8 +331,8 @@ const entries: Entry[] = [
     names: ["/proxy", "/parse", "/image", "/tvbus"],
   },
   {
-    title: "Exo 播放指令",
-    description: "新增播放指令按鈕、支援範圍與可複製的 mpv 指令範例",
+    title: "播放指令",
+    description: "依播放、音量、音軌、字幕、跳轉與畫面功能查找指令",
     href: "/commands#start",
     names: ["Exo", "mpv"],
     keywords: "播放指令 按鈕 Lua 腳本 mp.commandv 新增",
@@ -349,6 +351,20 @@ const entries: Entry[] = [
     names: ["seek", "absolute", "relative", "absolute-percent", "relative-percent"],
     keywords: "快轉 倒退 跳轉 秒 百分比 片長",
   },
+  {
+    title: "音軌切換",
+    description: "Exo、mpv 的音軌循環、指定、關閉與自動選軌指令",
+    href: "/commands#track-selection",
+    names: ["aid", "audio", "cycle aid", "cycle audio", "set aid", "set audio", "cycle-values aid", "cycle-values audio"],
+    keywords: "音軌 上一軌 下一軌 關閉音訊 自動選軌 no auto up down 反向 ID",
+  },
+  ...playbackCommandGroups.map((group) => ({
+    title: `${group.title}指令`,
+    description: `${group.support}：${group.description}`,
+    href: `/commands#${group.id}`,
+    names: [group.title, ...group.commands.map(([, command]) => command)],
+    keywords: group.commands.map(([title]) => title).join(" "),
+  })),
   ...playbackProperties.map((property) => ({
     title: `${property.name} 播放指令`,
     description: property.description,

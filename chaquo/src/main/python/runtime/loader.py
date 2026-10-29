@@ -236,7 +236,7 @@ class Runtime:
 
     def _execute_module(self, name, package, module, pending, snapshot):
         try:
-            path, payload = self._download(name + ".__init__" if package else name)
+            path, payload = self._module_source(name, package)
             module = self._module(name, path, package, module)
             with self._lock:
                 self._check_open()
@@ -251,6 +251,12 @@ class Runtime:
                 pending.error = error
                 pending.done.set()
             raise
+
+    def _module_source(self, name, package):
+        try:
+            return self._download(name + ".__init__" if package else name)
+        except SourceNotFoundError as error:
+            raise ModuleNotFoundError("No module named '" + name + "'", name=name) from error
 
     def _complete_module(self, name, module, pending):
         with self._lock:
@@ -268,7 +274,7 @@ class Runtime:
             prefix = package.split(".")
             if level > len(prefix) or prefix[0] != self.namespace:
                 raise ImportError("relative import outside Python spider runtime")
-            local_name = ".".join(prefix[1:len(prefix) - level + 1])
+            local_name = ".".join(prefix[1 : len(prefix) - level + 1])
             local_name = ".".join(filter(None, (local_name, name)))
             module = self.load_module(local_name) if local_name else self._package("")
         elif known:
@@ -305,17 +311,21 @@ class Runtime:
                 self.load_module(child)
 
     def spider(self, name=None):
+        from base.spider import Spider
+
         name = self.entry if name is None else self._name(name)
         module = self.load_module(name)
-        cls = module.Spider
-        cls._tv_runtime = self
+        cls = getattr(module, "Spider", None)
+        if not isinstance(cls, type) or cls is Spider or not issubclass(cls, Spider):
+            raise TypeError("Python source must export a Spider subclass")
+        cls.runtime = self
         cls.siteKey = self.site_key
         return self.bind(cls())
 
     def bind(self, spider):
         with self._lock:
             self._check_open()
-            spider._tv_runtime = self
+            spider.runtime = self
             spider.siteKey = self.site_key
         return spider
 

@@ -115,7 +115,7 @@ final class VodPreloader {
     }
 
     private boolean isPreloadable(VodPlayRequest request, Result result, Episode episode) {
-        return episode != null && host.canPreloadNext() && request.accepts(result) && !result.hasMsg() && !result.needParse() && !result.isUseParse() && result.getDrm() == null && !result.getRealUrl().isEmpty() && Source.get().canPreload(result.getUrl().uri());
+        return episode != null && host.canPreloadNext() && request.accepts(result) && !result.hasMsg() && !result.needParse() && !result.isUseParse() && !result.getRealUrl().isEmpty() && Source.get().canPreload(result.getUrl().uri());
     }
 
     private void start(VodPlayRequest request, Result result, Episode episode) {

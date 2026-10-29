@@ -1,0 +1,15 @@
+{
+  "repository": "FongMi/python-android",
+  "tag": "main",
+  "commit": "fbf2fda4f1ed280728969348d39504bbcf0fe615",
+  "manifests": {
+    "wheels": {
+      "file": "wheels-manifest.json",
+      "sha256": "12d6773a8194a31f07ac8491bd67e008be52a94af69ec36c837418095b1f9bb5"
+    },
+    "native-bundles": {
+      "file": "native-bundles-manifest.json",
+      "sha256": "37fcb6721f9e7db458da638df19a070c84d5e3271d6cdda8a58ae9ce87c1d4ae"
+    }
+  }
+}
