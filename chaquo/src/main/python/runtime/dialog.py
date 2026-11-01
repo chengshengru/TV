@@ -25,11 +25,11 @@ class DialogAdapter:
         self._native = None
         self._closed = False
 
-    def show(self, options, onAction=None):
+    def __call__(self, options, callback=None):
         if not isinstance(options, dict):
             raise TypeError("Dialog options must be a dict")
-        if onAction is not None and not callable(onAction):
-            raise TypeError("Dialog onAction must be callable")
+        if callback is not None and not callable(callback):
+            raise TypeError("Dialog callback must be callable")
         from java import jclass
 
         with self._lock:
@@ -39,11 +39,9 @@ class DialogAdapter:
                 self._native = jclass("com.github.catvod.utils.Dialog")()
             native = self._native
         json_object = jclass("org.json.JSONObject")
-        callback = None if onAction is None else _callback(onAction)
+        callback = None if callback is None else _callback(callback)
         result = native.show(json_object(json.dumps(options, ensure_ascii=False, allow_nan=False)), callback)
         return None if result is None else json.loads(str(result))
-
-    __call__ = show
 
     def close(self):
         with self._lock:

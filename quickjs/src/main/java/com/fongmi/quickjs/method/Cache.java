@@ -8,6 +8,7 @@ import com.google.gson.JsonObject;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -37,7 +38,7 @@ final class Cache {
             CompletableFuture<String> result = request(key, options, id, ticket);
             Invocation current = global.current();
             if (!Boolean.TRUE.equals(background) && current != null) current.track(result);
-            result.whenComplete((json, error) -> global.complete(complete, json, Global.errorMessage(error)));
+            result.whenComplete((json, error) -> complete(complete, json, error));
             startLoader(loader, ticket.get());
         } catch (Exception e) {
             global.release(loader);
@@ -49,6 +50,16 @@ final class Cache {
     private void holdCallbacks(QuickJS.Callback loader, QuickJS.Callback complete, Boolean background) {
         global.hold(complete, Boolean.TRUE.equals(background) ? null : global.current());
         global.hold(loader, null);
+    }
+
+    private void complete(QuickJS.Callback callback, String json, Throwable error) {
+        while (error instanceof CompletionException && error.getCause() != null) error = error.getCause();
+        if (error instanceof LoadFailure failure) {
+            failure.retain();
+            global.complete(callback, json, null, failure.reason).whenComplete((value, cause) -> failure.close());
+        } else {
+            global.complete(callback, json, Global.errorMessage(error));
+        }
     }
 
     private CompletableFuture<String> request(String key, String options, Integer id, AtomicInteger ticket) {
@@ -85,10 +96,12 @@ final class Cache {
         return delivery.whenComplete((value, error) -> loading.close());
     }
 
-    Boolean resolve(Integer ticket, String json, String error) {
+    Boolean resolve(Integer ticket, String json, QuickJS.Reference reason) {
         CompletableFuture<String> load = ticket == null ? null : loads.remove(ticket);
-        if (load == null) return false;
-        return error == null ? load.complete(json) : load.completeExceptionally(new IllegalStateException(error));
+        if (reason == null) return load != null && load.complete(json);
+        try (LoadFailure failure = new LoadFailure(reason)) {
+            return load != null && load.completeExceptionally(failure);
+        }
     }
 
     String peek(String key, Integer id) {
@@ -134,5 +147,25 @@ final class Cache {
 
     void release() {
         loads.clear();
+    }
+
+    private static final class LoadFailure extends RuntimeException implements AutoCloseable {
+
+        private final QuickJS.Reference reason;
+        private final AtomicInteger owners = new AtomicInteger(1);
+
+        private LoadFailure(QuickJS.Reference reason) {
+            super("Cache loader failed");
+            this.reason = reason;
+        }
+
+        private void retain() {
+            owners.incrementAndGet();
+        }
+
+        @Override
+        public void close() {
+            if (owners.decrementAndGet() == 0) reason.close();
+        }
     }
 }

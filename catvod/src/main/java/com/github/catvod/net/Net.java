@@ -6,6 +6,7 @@ import androidx.annotation.NonNull;
 import com.github.catvod.Runtime;
 import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.utils.Json;
+import com.github.catvod.utils.Task;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -64,6 +65,7 @@ public final class Net implements AutoCloseable {
 
     @Keep
     public interface Cookies {
+
         String getCookie(String url);
 
         boolean setCookie(String url, String cookie);
@@ -191,12 +193,6 @@ public final class Net implements AutoCloseable {
         return error;
     }
 
-    static <T> CompletableFuture<T> failedFuture(Throwable error) {
-        CompletableFuture<T> future = new CompletableFuture<>();
-        future.completeExceptionally(error);
-        return future;
-    }
-
     private CompletableFuture<String> load(Callable<String> loader) {
         CompletableFuture<String> loading = new CompletableFuture<>();
         FutureTask<Void> task = new FutureTask<>(() -> {
@@ -217,7 +213,7 @@ public final class Net implements AutoCloseable {
 
     public CompletableFuture<String> cachedAsync(String key, String options, Supplier<CompletableFuture<String>> loader) {
         synchronized (lock) {
-            if (closed) return failedFuture(new InterruptedIOException("Network owner closed"));
+            if (closed) return Task.failedFuture(new InterruptedIOException("Network owner closed"));
         }
         return cache.cached(key, CacheOptions.from(options), loader);
     }
@@ -225,11 +221,6 @@ public final class Net implements AutoCloseable {
     public String peek(String key) {
         checkOpen();
         return cache.peek(key);
-    }
-
-    public String cachedValue(String key, String options) {
-        checkOpen();
-        return cache.value(key, CacheOptions.from(options));
     }
 
     public void refresh(String key, String options, Callable<String> loader) {
@@ -367,13 +358,11 @@ public final class Net implements AutoCloseable {
 
     public <T, R> List<R> map(List<T> items, Mapper<T, R> mapper, int limit) throws Exception {
         if (items == null || mapper == null || limit < 1) throw new IllegalArgumentException("Invalid map options");
-        NetMap<T, R> mapping;
-        synchronized (lock) {
+        if (items.isEmpty()) {
             checkOpen();
-            if (items.isEmpty()) return new ArrayList<>();
-            mapping = new NetMap<>(items, mapper, limit, this::removeMap);
-            maps.add(mapping);
+            return new ArrayList<>();
         }
+        NetMap<T, R> mapping = createMap(items, mapper, limit);
         try {
             return mapping.start().get();
         } catch (InterruptedException error) {
@@ -383,6 +372,15 @@ public final class Net implements AutoCloseable {
             if (error.getCause() instanceof Exception cause) throw cause;
             if (error.getCause() instanceof Error cause) throw cause;
             throw new IllegalStateException(error.getCause());
+        }
+    }
+
+    private <T, R> NetMap<T, R> createMap(List<T> items, Mapper<T, R> mapper, int limit) {
+        synchronized (lock) {
+            checkOpen();
+            NetMap<T, R> mapping = new NetMap<>(items, mapper, limit, this::removeMap);
+            maps.add(mapping);
+            return mapping;
         }
     }
 
@@ -402,30 +400,25 @@ public final class Net implements AutoCloseable {
 
     private Result[] batch(JsonArray requests, int limit) throws IOException {
         validateBatch(requests, limit);
-        Result[] results = new Result[requests.size()];
-        List<CompletableFuture<Result>> active = new ArrayList<>();
+        if (requests.isEmpty()) {
+            checkOpen();
+            return new Result[0];
+        }
+        NetMap<JsonElement, Result> mapping = createMap(requests.asList(), (value, index) -> batchRequest(value.getAsJsonObject()), limit);
         try {
-            for (int start = 0; start < requests.size(); start += active.size()) {
-                active.clear();
-                enqueueBatch(requests, start, limit, active);
-                awaitBatch(active, results, start);
-            }
-            return results;
+            return mapping.start().get().toArray(Result[]::new);
         } catch (InterruptedException e) {
             throw interrupted(e);
         } catch (ExecutionException e) {
             throw new IOException(e.getCause());
         } finally {
-            for (CompletableFuture<Result> request : active) if (!request.isDone()) request.cancel(true);
+            mapping.cancel();
         }
     }
 
-    private void enqueueBatch(JsonArray requests, int start, int limit, List<CompletableFuture<Result>> active) {
-        for (int index = start; index < requests.size() && active.size() < limit; index++) {
-            JsonObject item = requests.get(index).getAsJsonObject();
-            String url = item.get("url").getAsString();
-            active.add(requestAsync(url, NetOptions.from(item.get("options") == null ? null : item.get("options").toString())));
-        }
+    private Result batchRequest(JsonObject item) {
+        String url = item.get("url").getAsString();
+        return request(url, NetOptions.from(item.get("options") == null ? null : item.get("options").toString()));
     }
 
     private void validateBatch(JsonArray requests, int limit) {
@@ -438,10 +431,6 @@ public final class Net implements AutoCloseable {
         JsonObject item = value.getAsJsonObject();
         JsonElement url = item.get("url"), options = item.get("options");
         if (url == null || !url.isJsonPrimitive() || !url.getAsJsonPrimitive().isString() || options != null && !options.isJsonNull() && !options.isJsonObject()) throw new IllegalArgumentException("Invalid batch request");
-    }
-
-    private void awaitBatch(List<CompletableFuture<Result>> active, Result[] results, int start) throws InterruptedException, ExecutionException {
-        for (int index = 0; index < active.size(); index++) results[start + index] = active.get(index).get();
     }
 
     public Object[][] batchParts(String requests, int limit) throws IOException {
@@ -470,7 +459,6 @@ public final class Net implements AutoCloseable {
 
     public CompletableFuture<String> downloadAsync(String url, String json, File file) {
         File target = file.isAbsolute() ? file : new File(Runtime.context().getCacheDir(), file.getPath());
-        CompletableFuture<String> future = new CompletableFuture<>();
         NetOptions options;
         Download download;
         Call call;
@@ -478,16 +466,15 @@ public final class Net implements AutoCloseable {
             options = NetOptions.from(json);
             download = createDownload(url, target, options);
         } catch (Exception e) {
-            future.completeExceptionally(e);
-            return future;
+            return Task.failedFuture(e);
         }
         try {
             call = newDownloadCall(download, options);
         } catch (Exception e) {
             closeDownload(download, e);
-            future.completeExceptionally(e);
-            return future;
+            return Task.failedFuture(e);
         }
+        CompletableFuture<String> future = new CompletableFuture<>();
         future.whenComplete((result, error) -> {
             if (future.isCancelled()) cancelDownload(call, download);
         });
@@ -613,13 +600,13 @@ public final class Net implements AutoCloseable {
     }
 
     public CompletableFuture<StreamResult> requestStreamAsync(String url, NetOptions options) {
-        CompletableFuture<StreamResult> future = new CompletableFuture<>();
         Call call;
         try {
             call = newCall(url, options);
         } catch (Exception error) {
-            return failedFuture(error);
+            return Task.failedFuture(error);
         }
+        CompletableFuture<StreamResult> future = new CompletableFuture<>();
         future.whenComplete((result, error) -> {
             if (future.isCancelled()) call.cancel();
         });
@@ -984,10 +971,10 @@ public final class Net implements AutoCloseable {
 
         public CompletableFuture<Integer> readAsync(ByteBuffer bytes) {
             if (bytes == null || bytes.isReadOnly() || !bytes.hasRemaining() || bytes.remaining() > 1024 * 1024) throw new IllegalArgumentException("Read requires a writable range of 1..1048576 bytes");
-            if (!reading.compareAndSet(false, true)) return failedFuture(new IllegalStateException("Stream read already pending"));
+            if (!reading.compareAndSet(false, true)) return Task.failedFuture(new IllegalStateException("Stream read already pending"));
             if (finished.get()) {
                 endRead();
-                return failedFuture(new IOException("Response stream closed"));
+                return Task.failedFuture(new IOException("Response stream closed"));
             }
             CompletableFuture<Integer> result = new CompletableFuture<>();
             result.whenComplete((value, error) -> {

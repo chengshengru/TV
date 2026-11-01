@@ -77,7 +77,7 @@ const entries: Entry[] = [
     title: "爬蟲即時彈幕",
     description: "即時來源、彈幕顏色、字級、位置與漸層",
     href: "/spider#live-danmaku",
-    names: ["getDanmakuUrl", "danmaku(id, emit)", "emit.accept", ...liveDanmakuFields.map((field) => field.name)],
+    names: ["danmakuUrl", "danmaku(id, emit)", "emit.accept", ...liveDanmakuFields.map((field) => field.name)],
     keywords: "Java Python QuickJS WebSocket net.connect 停止函式 AutoCloseable state msg connecting ready retrying error 訂閱狀態 " + liveDanmakuFields.map((field) => field.description).join(" "),
   },
   {

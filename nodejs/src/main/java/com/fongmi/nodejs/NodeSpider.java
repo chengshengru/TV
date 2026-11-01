@@ -12,6 +12,7 @@ import com.google.gson.JsonParser;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 
 public final class NodeSpider extends Spider {
 
@@ -19,11 +20,14 @@ public final class NodeSpider extends Spider {
     private static final Gson GSON = new Gson();
     private final String api;
     private final NodeClient client;
+    private final long session;
     private volatile Boolean videoCheck;
+    private volatile boolean destroyed;
 
     public NodeSpider(NodeClient client, String api) {
         this.client = client;
         this.api = api;
+        session = client.session();
     }
 
     static String addMissingActions(String result) {
@@ -55,11 +59,21 @@ public final class NodeSpider extends Spider {
 
     @Override
     public void init(Context context, String extend) throws Exception {
+        checkActive();
         JsonObject body = new JsonObject();
         String value = extend == null ? "" : extend;
         body.addProperty("ext", value);
         body.addProperty("extend", value);
-        client.initialize(api, body);
+        client.initialize(session, api, body);
+    }
+
+    @Override
+    public void destroy() {
+        destroyed = true;
+    }
+
+    private void checkActive() {
+        if (destroyed) throw new CancellationException("Spider destroyed");
     }
 
     @Override
@@ -71,8 +85,9 @@ public final class NodeSpider extends Spider {
 
     @Override
     public String homeVideoContent() throws Exception {
-        String result = client.postOptional(NodeRoute.append(api, "/homeVod"), new JsonObject());
-        if (result.isEmpty()) result = client.postOptional(NodeRoute.append(api, "/homeVideo"), new JsonObject());
+        checkActive();
+        String result = client.postOptional(session, NodeRoute.append(api, "/homeVod"), new JsonObject());
+        if (result.isEmpty()) result = client.postOptional(session, NodeRoute.append(api, "/homeVideo"), new JsonObject());
         return addLegacyConfigActions(result);
     }
 
@@ -88,7 +103,19 @@ public final class NodeSpider extends Spider {
 
     @Override
     public String detailContent(List<String> ids) throws Exception {
-        return detail(ids.isEmpty() ? "" : ids.get(0));
+        checkActive();
+        if (ids.isEmpty()) return super.detailContent(ids);
+        String first = detail(ids.get(0));
+        if (ids.size() == 1) return first;
+        JsonObject result = JsonParser.parseString(first).getAsJsonObject();
+        JsonArray list = result.getAsJsonArray("list");
+        for (int i = 1; i < ids.size(); i++) appendDetail(list, ids.get(i));
+        return result.toString();
+    }
+
+    private void appendDetail(JsonArray list, String id) throws Exception {
+        JsonObject item = JsonParser.parseString(detail(id)).getAsJsonObject();
+        list.addAll(item.getAsJsonArray("list"));
     }
 
     @Override
@@ -107,7 +134,8 @@ public final class NodeSpider extends Spider {
 
     @Override
     public String playerContent(String flag, String id, List<String> vipFlags) throws Exception {
-        client.setPlayInfo(flag, id);
+        checkActive();
+        client.setPlayInfo(session, flag, id);
         JsonObject body = new JsonObject();
         body.addProperty("flag", flag);
         body.addProperty("id", id);
@@ -117,17 +145,19 @@ public final class NodeSpider extends Spider {
 
     @Override
     public String liveContent(String url) throws Exception {
+        checkActive();
         JsonObject body = new JsonObject();
         body.addProperty("url", url);
-        return client.postOptional(NodeRoute.append(api, "/live"), body);
+        return client.postOptional(session, NodeRoute.append(api, "/live"), body);
     }
 
     @Override
     public boolean manualVideoCheck() throws Exception {
+        checkActive();
         if (videoCheck != null) return videoCheck;
         JsonObject body = new JsonObject();
         body.addProperty("clip", "");
-        String result = client.postOptional(NodeRoute.append(api, "/support"), body);
+        String result = client.postOptional(session, NodeRoute.append(api, "/support"), body);
         return videoCheck = !result.isEmpty();
     }
 
@@ -136,7 +166,7 @@ public final class NodeSpider extends Spider {
         if (!manualVideoCheck()) return false;
         JsonObject body = new JsonObject();
         body.addProperty("clip", url);
-        String result = client.postOptional(NodeRoute.append(api, "/support"), body);
+        String result = client.postOptional(session, NodeRoute.append(api, "/support"), body);
         if (result.isEmpty()) {
             videoCheck = false;
             return false;
@@ -146,14 +176,16 @@ public final class NodeSpider extends Spider {
 
     @Override
     public Object[] proxy(Map<String, String> params) throws Exception {
-        return client.proxy(api, params);
+        checkActive();
+        return client.proxy(session, api, params);
     }
 
     @Override
     public String action(String action) throws Exception {
+        checkActive();
         JsonObject body = new JsonObject();
         body.addProperty("action", action);
-        String result = client.postOrNull(NodeRoute.append(api, "/action"), body);
+        String result = client.postOrNull(session, NodeRoute.append(api, "/action"), body);
         if (result == null) result = isLegacyConfigSpider() ? detail(action) : "";
         if (result.isEmpty()) return result;
         JsonObject response = JsonParser.parseString(result).getAsJsonObject();
@@ -179,6 +211,7 @@ public final class NodeSpider extends Spider {
     }
 
     private String call(String route, JsonObject body) throws Exception {
-        return client.post(NodeRoute.append(api, route), body);
+        checkActive();
+        return client.post(session, NodeRoute.append(api, route), body);
     }
 }
