@@ -21,7 +21,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -51,6 +50,8 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import okio.BufferedSink;
+import okio.BufferedSource;
 
 public final class NodeClient implements NodeRuntimeApi.Client {
 
@@ -68,10 +69,10 @@ public final class NodeClient implements NodeRuntimeApi.Client {
     private static final int CIRCUIT_FAILURE_THRESHOLD = 3;
     private static final Pattern LEGACY_LOOPBACK = Pattern.compile("http://(?:127\\.0\\.0\\.1|localhost):9978(?=[/?#|$\\s\"']|$)");
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
-    private static final OkHttpClient CLIENT = client(REQUEST_TIMEOUT_MILLIS);
+    private static final OkHttpClient CLIENT = new OkHttpClient.Builder().proxy(Proxy.NO_PROXY).retryOnConnectionFailure(false).connectTimeout(REQUEST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS).readTimeout(REQUEST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS).writeTimeout(REQUEST_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS).build();
     private static final OkHttpClient FAST_CLIENT = client(FAST_TIMEOUT_MILLIS);
     private static final OkHttpClient PLAY_CLIENT = client(PLAY_TIMEOUT_MILLIS);
-    private static final OkHttpClient HEALTH_CLIENT = client(TimeUnit.SECONDS.toMillis(5)).newBuilder().callTimeout(5, TimeUnit.SECONDS).retryOnConnectionFailure(false).followRedirects(false).followSslRedirects(false).build();
+    private static final OkHttpClient HEALTH_CLIENT = client(TimeUnit.SECONDS.toMillis(5)).newBuilder().callTimeout(5, TimeUnit.SECONDS).followRedirects(false).followSslRedirects(false).build();
 
     private final Callback callback;
     private final Context context;
@@ -124,25 +125,14 @@ public final class NodeClient implements NodeRuntimeApi.Client {
     static String readResponse(ResponseBody body, long limit) throws IOException {
         long length = body.contentLength();
         if (length > limit) throw new NodeResponseException("Node response is too large");
-        try (InputStream input = body.byteStream(); ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-            copyResponse(input, output, limit);
-            return new String(output.toByteArray(), StandardCharsets.UTF_8);
-        }
-    }
-
-    private static void copyResponse(InputStream input, ByteArrayOutputStream output, long limit) throws IOException {
-        byte[] buffer = new byte[16 * 1024];
-        long total = 0;
-        int count;
-        while ((count = input.read(buffer)) != -1) {
-            total += count;
-            if (total > limit) throw new NodeResponseException("Node response is too large");
-            output.write(buffer, 0, count);
+        try (BufferedSource source = body.source()) {
+            if (source.request(limit + 1)) throw new NodeResponseException("Node response is too large");
+            return source.readUtf8();
         }
     }
 
     private static OkHttpClient client(long timeout) {
-        return new OkHttpClient.Builder().proxy(Proxy.NO_PROXY).connectTimeout(timeout, TimeUnit.MILLISECONDS).readTimeout(timeout, TimeUnit.MILLISECONDS).writeTimeout(timeout, TimeUnit.MILLISECONDS).build();
+        return CLIENT.newBuilder().connectTimeout(timeout, TimeUnit.MILLISECONDS).readTimeout(timeout, TimeUnit.MILLISECONDS).writeTimeout(timeout, TimeUnit.MILLISECONDS).build();
     }
 
     private static OkHttpClient clientFor(String route) {
@@ -590,6 +580,11 @@ public final class NodeClient implements NodeRuntimeApi.Client {
         if (callback != null) callback.onPlayInfo(flag, id);
     }
 
+    synchronized void setPlayInfo(long session, String flag, String id) throws InterruptedIOException {
+        snapshot(session);
+        setPlayInfo(flag, id);
+    }
+
     public File getProfileFile() {
         NodeBundle current = bundle;
         return current == null ? null : new File(current.getRoot().getParentFile(), "profile.json");
@@ -626,50 +621,45 @@ public final class NodeClient implements NodeRuntimeApi.Client {
     }
 
     public String post(String api, JsonObject body) throws Exception {
-        return request(api, state -> executePost(state, api, body));
+        return post(session(), api, body);
     }
 
-    private <T> T request(String endpoint, RequestOperation<T> operation) throws Exception {
+    String post(long session, String api, JsonObject body) throws Exception {
+        return request(session, api, state -> executePost(state, api, body));
+    }
+
+    private <T> T request(long session, String endpoint, RequestOperation<T> operation) throws Exception {
+        RequestState state = snapshot(session);
         RuntimeModule.NODEJS.require();
         checkCircuit();
-        RequestState state = snapshot();
         long start = System.currentTimeMillis();
         try {
+            if (TextUtils.isEmpty(state.address())) state = recover(state);
             T result = operation.execute(state);
             recordSuccess(state.session(), endpoint, System.currentTimeMillis() - start);
             return result;
-        } catch (Exception first) {
-            checkSession(state);
-            if (!isTransportFailure(first) || isInterrupted(first)) {
-                recordApplicationError(state.session(), endpoint, first, System.currentTimeMillis() - start);
-                throw first;
-            }
-            if (hasCause(first, SocketTimeoutException.class)) {
-                invalidate(state, first);
-                recordTransportFailure(state.session(), endpoint, first, System.currentTimeMillis() - start);
-                throw first;
-            }
-            return recoverRequest(endpoint, operation, state, start, first);
+        } catch (Exception error) {
+            onRequestError(state, endpoint, error, start);
+            throw error;
         }
     }
 
-    private <T> T recoverRequest(String endpoint, RequestOperation<T> operation, RequestState state, long start, Exception first) throws Exception {
-        try {
-            state = recover(state);
-            T result = operation.execute(state);
-            recordSuccess(state.session(), endpoint, System.currentTimeMillis() - start);
-            return result;
-        } catch (Exception second) {
-            checkSession(state);
-            second.addSuppressed(first);
-            if (isInterrupted(second) || !isTransportFailure(second)) recordApplicationError(state.session(), endpoint, second, System.currentTimeMillis() - start);
-            else recordTransportFailure(state.session(), endpoint, second, System.currentTimeMillis() - start);
-            throw second;
+    private void onRequestError(RequestState state, String endpoint, Exception error, long start) throws InterruptedIOException {
+        checkSession(state);
+        if (isTransportFailure(error) && !isInterrupted(error)) {
+            invalidate(state, error);
+            recordTransportFailure(state.session(), endpoint, error, System.currentTimeMillis() - start);
+        } else {
+            recordApplicationError(state.session(), endpoint, error, System.currentTimeMillis() - start);
         }
     }
 
     public synchronized void initialize(String api, JsonObject body) throws Exception {
-        post(NodeRoute.append(api, "/init"), body);
+        initialize(session, api, body);
+    }
+
+    synchronized void initialize(long session, String api, JsonObject body) throws Exception {
+        post(session, NodeRoute.append(api, "/init"), body);
         initializations.put(api, body.toString());
     }
 
@@ -677,7 +667,7 @@ public final class NodeClient implements NodeRuntimeApi.Client {
         String route = NodeRoute.path(api);
         String base = state.address();
         if (TextUtils.isEmpty(base)) throw new IOException("Node runtime is not running");
-        Request request = new Request.Builder().url(base + route).post(RequestBody.create(body.toString().getBytes(StandardCharsets.UTF_8), JSON)).build();
+        Request request = new Request.Builder().url(base + route).post(jsonBody(body)).build();
         Call call = registerCall(state, clientFor(route), request);
         try (Response response = call.execute()) {
             return readResponse(response, state, MAX_JSON_RESPONSE_BYTES);
@@ -686,15 +676,44 @@ public final class NodeClient implements NodeRuntimeApi.Client {
         }
     }
 
+    private static RequestBody jsonBody(JsonObject body) {
+        byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
+        return new RequestBody() {
+            @Override
+            public MediaType contentType() {
+                return JSON;
+            }
+
+            @Override
+            public long contentLength() {
+                return bytes.length;
+            }
+
+            @Override
+            public boolean isOneShot() {
+                return true;
+            }
+
+            @Override
+            public void writeTo(BufferedSink sink) throws IOException {
+                sink.write(bytes);
+            }
+        };
+    }
+
     public String postOptional(String api, JsonObject body) throws Exception {
-        String result = postOrNull(api, body);
+        return postOptional(session(), api, body);
+    }
+
+    String postOptional(long session, String api, JsonObject body) throws Exception {
+        String result = postOrNull(session, api, body);
         return result == null ? "" : result;
     }
 
     @Nullable
-    String postOrNull(String api, JsonObject body) throws Exception {
+    String postOrNull(long session, String api, JsonObject body) throws Exception {
         try {
-            return post(api, body);
+            return post(session, api, body);
         } catch (NodeHttpException e) {
             if (e.code == 404) return null;
             throw e;
@@ -702,7 +721,11 @@ public final class NodeClient implements NodeRuntimeApi.Client {
     }
 
     public Object[] proxy(String api, Map<String, String> params) throws Exception {
-        return request(String.valueOf(params.getOrDefault("path", "/proxy")), state -> executeProxy(state, api, params));
+        return proxy(session(), api, params);
+    }
+
+    Object[] proxy(long session, String api, Map<String, String> params) throws Exception {
+        return request(session, String.valueOf(params.getOrDefault("path", "/proxy")), state -> executeProxy(state, api, params));
     }
 
     private Object[] executeProxy(RequestState state, String api, Map<String, String> params) throws Exception {
@@ -807,6 +830,17 @@ public final class NodeClient implements NodeRuntimeApi.Client {
 
     private synchronized RequestState snapshot() {
         return new RequestState(session, generation, address, loadCancellation);
+    }
+
+    synchronized long session() {
+        return session;
+    }
+
+    private synchronized RequestState snapshot(long expectedSession) throws InterruptedIOException {
+        if (session != expectedSession) throw new InterruptedIOException("Node config load was superseded");
+        RequestState state = snapshot();
+        checkSession(state);
+        return state;
     }
 
     private synchronized void checkSession(RequestState state) throws InterruptedIOException {

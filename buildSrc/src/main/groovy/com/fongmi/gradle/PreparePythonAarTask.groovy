@@ -126,6 +126,7 @@ abstract class PreparePythonAarTask extends DefaultTask {
     private static void verifyNativeLibrary(byte[] bytes, String abi, String path) {
         MpvNativeLibraries.needed(bytes, abi)
         boolean wide = abi == 'arm64-v8a'
+        int pageSize = wide ? 16384 : 4096
         def data = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
         long headers = wide ? data.getLong(32) : Integer.toUnsignedLong(data.getInt(28))
         int stride = Short.toUnsignedInt(data.getShort(wide ? 54 : 42))
@@ -137,8 +138,8 @@ abstract class PreparePythonAarTask extends DefaultTask {
             long address = wide ? data.getLong(position + 16) : Integer.toUnsignedLong(data.getInt(position + 8))
             long size = wide ? data.getLong(position + 40) : Integer.toUnsignedLong(data.getInt(position + 20))
             long alignment = wide ? data.getLong(position + 48) : Integer.toUnsignedLong(data.getInt(position + 28))
-            if (type == 1 && (alignment < 16384 || (address - offset) % 16384 != 0)) throw new GradleException("${path}: LOAD must support 16 KB pages")
-            if (type == 0x6474e552 && (address + size) % 16384 != 0) throw new GradleException("${path}: RELRO must support 16 KB pages")
+            if (type == 1 && (alignment < pageSize || (address - offset) % pageSize != 0)) throw new GradleException("${path}: LOAD must support ${pageSize} byte pages")
+            if (type == 0x6474e552 && (address + size) % pageSize != 0) throw new GradleException("${path}: RELRO must support ${pageSize} byte pages")
         }
     }
 
@@ -215,17 +216,21 @@ abstract class PreparePythonAarTask extends DefaultTask {
         ZipFile.builder().setSeekableByteChannel(new SeekableInMemoryByteChannel(requirements.bytes)).get().withCloseable { input ->
             if (!Arrays.equals(PreparePythonAarTask.readEntry(input, CXX), PreparePythonAarTask.readCxx(cxxAar, abi))) throw new GradleException('Python C++ runtime does not match the App')
         }
-        if (abi == 'arm64-v8a') verifyPreparedNative(source, abi)
+        verifyPreparedNative(source, abi)
     }
 
     private static void verifyPreparedNative(ZipFile source, String abi) {
-        entryNames(source).findAll { it.endsWith('.so') }.each { path -> verifyNativeLibrary(readEntry(source, path), abi, path) }
+        entryNames(source).findAll { isNativeLibrary(it) }.each { path -> verifyNativeLibrary(readEntry(source, path), abi, path) }
         for (def name : ['requirements-common.imy', "requirements-${abi}.imy", "stdlib-${abi}.imy"]) {
             def archive = readEntry(source, ASSETS + name)
             ZipFile.builder().setSeekableByteChannel(new SeekableInMemoryByteChannel(archive)).get().withCloseable { input ->
-                entryNames(input).findAll { it.endsWith('.so') }.each { path -> verifyNativeLibrary(readEntry(input, path), abi, name + "!/" + path) }
+                entryNames(input).findAll { isNativeLibrary(it) }.each { path -> verifyNativeLibrary(readEntry(input, path), abi, name + "!/" + path) }
             }
         }
+    }
+
+    private static boolean isNativeLibrary(String path) {
+        return path ==~ /.*\.so(?:\.\d+)*/
     }
 
     private static boolean retained(String path, String abi) {

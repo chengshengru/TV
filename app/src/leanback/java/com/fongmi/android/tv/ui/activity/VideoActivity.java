@@ -65,7 +65,6 @@ import com.fongmi.android.tv.player.media.PlaySpec;
 import com.fongmi.android.tv.service.PlaybackService;
 import com.fongmi.android.tv.setting.DanmakuSetting;
 import com.fongmi.android.tv.setting.PlayerSetting;
-import com.fongmi.android.tv.setting.SpeedSetting;
 import com.fongmi.android.tv.ui.adapter.ArrayAdapter;
 import com.fongmi.android.tv.ui.adapter.EpisodeAdapter;
 import com.fongmi.android.tv.ui.adapter.FlagAdapter;
@@ -272,6 +271,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (TextUtils.isEmpty(intent.getStringExtra("id")) || isSameVideo(intent)) return;
+        mInput.cancelSeek();
         externalPlaybackCompleted = false;
         saveHistory(true);
         mVod.reset();
@@ -508,11 +508,13 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
 
     @Override
     public void onPlaybackRequested() {
+        mInput.cancelSeek();
         showProgress();
     }
 
     @Override
     public void prepareSource(Vod item) {
+        mInput.cancelSeek();
         ExternalPlayback.clearOptions(getIntent());
         getIntent().putExtra("key", item.getSiteKey());
         getIntent().putExtra("id", item.getId());
@@ -526,6 +528,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
 
     @Override
     public void stopPlaybackForRefresh() {
+        mInput.cancelSeek();
         if (!isBindingOwner()) return;
         stopWebPlayback();
         service().stopPlayback(getNavigationCallback());
@@ -547,6 +550,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
 
     @Override
     public void seekPlayback(long position) {
+        mInput.cancelSeek();
         long current = getPlayerPosition();
         if (current >= 0) seekTo(position - current);
     }
@@ -568,6 +572,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
 
     @Override
     public void startPlayback(Result result, boolean useParse, long startPositionMs, MediaMetadata metadata) {
+        mInput.cancelSeek();
         ExternalPlayback.apply(result, getIntent());
         startPositionMs = ExternalPlayback.takePosition(getIntent(), startPositionMs);
         if (startWebPlayback(mBinding.video, result)) return;
@@ -684,7 +689,6 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
         mHistory = history;
         mBinding.control.action.opening.setText(openingText(history.getOpening()));
         mBinding.control.action.ending.setText(endingText(history.getEnding()));
-        player().setSpeed(SpeedSetting.getPlayback());
         setScale(getScale());
         setPartAdapter();
     }
@@ -968,12 +972,12 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
     }
 
     private void onSpeed() {
-        SpeedSettingDialog.create().save(true).show(this);
+        SpeedSettingDialog.create().show(this);
         hideControl();
     }
 
     private boolean onSpeedLong() {
-        SpeedSetting.putPlayback(PlaybackAction.toggleSpeed(player(), mBinding.widget.message));
+        PlaybackAction.toggleSpeed(player(), mBinding.widget.message);
         return true;
     }
 
@@ -1134,6 +1138,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
     }
 
     private void showControl(View view) {
+        mInput.cancelSeek();
         updateDiscMenuVisibility();
         mBinding.control.getRoot().setVisibility(View.VISIBLE);
         view.requestFocus();
@@ -1374,6 +1379,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
 
     @Override
     protected void onPreloadTransition(Object tag, long oldPositionMs, long oldDurationMs) {
+        mInput.cancelSeek();
         if (tag instanceof VodPlayRequest request) mVod.onPreloadTransition(request, oldPositionMs, oldDurationMs);
     }
 
@@ -1404,6 +1410,11 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
             if (isFullscreen()) showInfo();
             else hideInfo();
         }
+    }
+
+    @Override
+    public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
+        if (!playWhenReady && isOwner()) mInput.cancelSeek();
     }
 
     @Override
@@ -1489,11 +1500,13 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
     }
 
     private void onPaused() {
+        mInput.cancelSeek();
         if (pauseWebPlayback()) return;
         controller().pause();
     }
 
     private void onPlay() {
+        mInput.cancelSeek();
         if (resumeWebPlayback()) return;
         if (mHistory != null && isEnded() && !isDiscMenuActive() && !isIsoPlaybackOngoing()) controller().seekTo(mVod.openingPositionMs());
         if (!player().isEmpty() && isIdle()) controller().prepare();
@@ -1507,11 +1520,13 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
     }
 
     private boolean onSeekBack() {
+        mInput.cancelSeek();
         controller().seekBack();
         return true;
     }
 
     private boolean onSeekForward() {
+        mInput.cancelSeek();
         controller().seekForward();
         return true;
     }
@@ -1543,9 +1558,11 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
+        if (keyCode == KeyEvent.KEYCODE_MENU && KeyUtil.isActionDown(event)) mInput.cancelSeek();
         boolean discMenuShortcut = keyCode == KeyEvent.KEYCODE_MEDIA_TOP_MENU || keyCode == KeyEvent.KEYCODE_TV_CONTENTS_MENU;
         boolean discMenuNavigation = keyCode != KeyEvent.KEYCODE_MENU && isFullscreen() && isGone(mBinding.control.getRoot());
         if ((discMenuShortcut || discMenuNavigation) && dispatchDiscMenuKey(event)) {
+            mInput.cancelSeek();
             hideControl();
             return true;
         }
@@ -1569,6 +1586,11 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
     @Override
     public void onSeekEnd(long time) {
         if (seekTo(time)) hideCenter();
+    }
+
+    @Override
+    public void onSeekCancel() {
+        hideCenter();
     }
 
     @Override
@@ -1628,6 +1650,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
 
     @Override
     protected void onStop() {
+        mInput.cancelSeek();
         super.onStop();
         saveHistory(false);
         if (PlayerSetting.isBackgroundOff()) mClock.stop();
@@ -1642,6 +1665,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
         } else if (handleDiscMenuBack()) {
             return;
         } else if (isVisible(mBinding.widget.center)) {
+            mInput.cancelSeek();
             hideCenter();
         } else if (isFullscreen()) {
             exitFullscreen();
@@ -1654,6 +1678,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
 
     @Override
     protected void onDestroy() {
+        mInput.cancelSeek();
         mClock.release();
         saveHistory(true);
         DanmakuApi.cancel();

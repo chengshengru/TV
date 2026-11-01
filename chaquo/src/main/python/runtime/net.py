@@ -67,7 +67,9 @@ def _loader_class():
     with _loader_lock:
         if _loader_type is None:
             from java import dynamic_proxy
+            from java.lang import Throwable
             from java.util.concurrent import Callable
+            from com.fongmi.chaquo import CacheException
 
             class Loader(dynamic_proxy(Callable)):
                 def __init__(self, loader):
@@ -75,7 +77,12 @@ def _loader_class():
                     self._loader = loader
 
                 def call(self):
-                    return json.dumps(self._loader(), ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+                    try:
+                        return json.dumps(self._loader(), ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+                    except Throwable:
+                        raise
+                    except BaseException as error:
+                        raise CacheException(error) from None
 
             _loader_type = Loader
         return _loader_type
@@ -227,11 +234,14 @@ class NetAdapter:
         _cache_options(options, "cached")
         if not callable(loader):
             raise TypeError("cached requires a callable loader")
+        from com.fongmi.chaquo import CacheException
+
         options = json.dumps(options)
-        value = self._native.cachedValue(key, options)
-        if value is None:
-            value = self._native.cached(key, options, _loader_class()(loader))
-        return value
+        try:
+            return self._native.cached(key, options, _loader_class()(loader))
+        except CacheException as failure:
+            error = failure.error()
+        raise error
 
     def clearCache(self, key=None):
         self._native.clearCache(key)

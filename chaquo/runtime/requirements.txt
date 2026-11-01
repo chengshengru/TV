@@ -8,7 +8,10 @@ cryptography==50.0.2
 cffi==2.0.0
 pycparser==3.11
 chaquopy-libffi==3.3
-pywasm==0.4.8
+pywasm==1.0.8
+numpy==1.26.2
+chaquopy-openblas==0.2.20
+chaquopy-libgfortran==4.9
 beautifulsoup4==4.15.0
 certifi==2026.10.23
 chaquopy-libcxx==180000

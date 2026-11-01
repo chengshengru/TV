@@ -1,7 +1,5 @@
 package com.fongmi.quickjs.utils;
 
-import android.os.Build;
-import android.os.Process;
 import android.text.TextUtils;
 import android.util.LruCache;
 
@@ -10,6 +8,7 @@ import com.fongmi.quickjs.QuickJS;
 import com.github.catvod.crawler.SpiderDebug;
 import com.github.catvod.net.Net;
 import com.github.catvod.net.NetOptions;
+import com.github.catvod.utils.PackageAbi;
 import com.github.catvod.utils.Path;
 import com.github.catvod.utils.RuntimeModule;
 import com.github.catvod.utils.UriUtil;
@@ -42,7 +41,7 @@ public class Module implements QuickJS.ModuleLoader {
     }
 
     private ModuleBytecodeCache createBytecodeCache() {
-        String abi = Process.is64Bit() ? Build.SUPPORTED_64_BIT_ABIS[0] : Build.SUPPORTED_32_BIT_ABIS[0];
+        String abi = PackageAbi.get();
         File directory = new File(Path.cache(), "quickjs-bytecode");
         String identity = RuntimeModule.QUICKJS.getCompatibilityId() + '\0' + abi;
         return new ModuleBytecodeCache(directory, identity, MAX_BYTECODE_BYTES, MAX_BYTECODE_FILES, SpiderDebug::log);
@@ -50,6 +49,7 @@ public class Module implements QuickJS.ModuleLoader {
 
     @Override
     public String normalize(String base, String name) {
+        if (name.equals("catvod")) return "assets://js/lib/catvod.js";
         return UriUtil.resolve(base, name);
     }
 
@@ -119,8 +119,7 @@ public class Module implements QuickJS.ModuleLoader {
     private CompletableFuture<String> read(String name, Net client) {
         if (name.startsWith("http")) return client.requestAsync(name, new NetOptions()).thenApply(this::readResponse);
         if (name.startsWith("assets")) return CompletableFuture.completedFuture(RuntimeModule.QUICKJS.readAsset(name));
-        if (name.startsWith("lib/")) return CompletableFuture.completedFuture(RuntimeModule.QUICKJS.readAsset("js/" + name));
-        return CompletableFuture.completedFuture(null);
+        throw new IllegalArgumentException("Unsupported module URL: " + name);
     }
 
     private String readResponse(Net.Result result) {

@@ -2,6 +2,7 @@ package com.fongmi.quickjs.method;
 
 import com.fongmi.quickjs.QuickJS;
 import com.github.catvod.crawler.SpiderDebug;
+import com.github.catvod.utils.CallTimeout;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -15,6 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class ProxyBody extends InputStream {
 
     private static final int CHUNK_SIZE = 65536;
+    private static final long CLOSE_TIMEOUT = 5000;
 
     private final Global global;
     private final QuickJS.Callback pull;
@@ -24,6 +26,7 @@ final class ProxyBody extends InputStream {
     private final AtomicBoolean closed = new AtomicBoolean();
     private final Object readLock = new Object();
     private final long timeout;
+    private volatile CompletableFuture<Object> reading;
     private byte[] bytes;
     private int position;
 
@@ -60,7 +63,9 @@ final class ProxyBody extends InputStream {
     }
 
     private byte[] nextChunk() throws IOException {
-        CompletableFuture<Object> pending = global.invoke(lifetime, pull, CHUNK_SIZE);
+        CompletableFuture<Object> pending = global.invoke(lifetime, pull, CHUNK_SIZE).thenApply(value -> value);
+        reading = pending;
+        if (closed.get()) pending.cancel(false);
         try {
             return awaitChunk(pending);
         } catch (InterruptedException error) {
@@ -74,6 +79,8 @@ final class ProxyBody extends InputStream {
             throw fail(error);
         } catch (RuntimeException | IOException error) {
             throw fail(error);
+        } finally {
+            reading = null;
         }
     }
 
@@ -102,15 +109,41 @@ final class ProxyBody extends InputStream {
         if (!closed.compareAndSet(false, true)) return;
         release.run();
         try {
-            lifetime.cancel();
+            CompletableFuture<Object> pending = reading;
+            if (pending != null) pending.cancel(false);
         } finally {
-            global.invoke(lifetime, cancel).whenComplete(this::releaseCallbacks);
+            cancelGenerator();
         }
     }
 
-    private void releaseCallbacks(Object value, Throwable error) {
-        pull.close();
-        cancel.close();
+    private void cancelGenerator() {
+        Invocation cleanup = new Invocation();
+        CompletableFuture<Object> pending = global.invoke(cleanup, cancel);
+        cleanup.bind(pending);
+        CallTimeout deadline = new CallTimeout(CLOSE_TIMEOUT);
+        deadline.start(() -> pending.cancel(false));
+        pending.whenComplete((value, error) -> releaseCallbacks(cleanup, deadline, error));
+    }
+
+    private void releaseCallbacks(Invocation cleanup, CallTimeout deadline, Throwable error) {
+        try {
+            deadline.close();
+            closeInvocations(cleanup);
+        } catch (RuntimeException | Error closing) {
+            if (error == null) error = closing;
+            else if (error != closing) error.addSuppressed(closing);
+        } finally {
+            pull.close();
+            cancel.close();
+        }
         if (error != null && !global.isDestroyed()) SpiderDebug.log(error);
+    }
+
+    private void closeInvocations(Invocation cleanup) {
+        try {
+            lifetime.cancel();
+        } finally {
+            cleanup.close();
+        }
     }
 }

@@ -65,12 +65,14 @@ nativeLock.manifests.each { name, metadata ->
     if (MessageDigest.getInstance('SHA-256').digest(bytes).encodeHex().toString() != metadata.sha256) throw new GradleException('Python native inputs do not match native.lock.json; run python scripts/sync_python_runtime.py from the TV root')
 }
 def nativeWheels = new JsonSlurper().parseText(providers.fileContents(layout.projectDirectory.file('wheels/manifest.json')).asText.get())
+def pureWheels = new JsonSlurper().parseText(providers.fileContents(layout.projectDirectory.file('pure-wheels/manifest.json')).asText.get()).wheels
 
 chaquopy {
     defaultConfig {
         version = "3.10"
         pip {
             install("-r", "requirements.txt")
+            pureWheels.each { wheel -> install("pure-wheels/${wheel.file}") }
         }
     }
     productFlavors {
@@ -94,8 +96,8 @@ androidComponents.onVariants(androidComponents.selector().all()) { variant ->
     def abi = AbiApkPackaging.ABI_FLAVORS[flavor]
     def wheels = nativeWheels.abis[abi].wheels
     def verified = tasks.register("verify${variant.name.capitalize()}PythonWheels", VerifyPythonWheelsTask) { task ->
-        task.wheels.from(wheels.collect { layout.projectDirectory.file("wheels/${it.file}") })
-        task.expectedHashes.set(wheels.collectEntries { [(it.file): it.sha256] })
+        task.wheels.from(wheels.collect { layout.projectDirectory.file("wheels/${it.file}") }, pureWheels.collect { layout.projectDirectory.file("pure-wheels/${it.file}") })
+        task.expectedHashes.set((wheels + pureWheels).collectEntries { [(it.file): it.sha256] })
     }
     def requirementsTask = "install${variant.name.capitalize()}PythonRequirements"
     tasks.matching { it.name == requirementsTask }.configureEach { dependsOn(verified) }

@@ -5,7 +5,7 @@ from urllib.parse import urlsplit
 from urllib.request import url2pathname
 
 from runtime.dialog import DialogAdapter
-from runtime.loader import Runtime, SourceNotFoundError
+from runtime.loader import Runtime, SourceNotFoundError, cleanup_failure, raise_failure
 from runtime.net import JsAdapter, LocalAdapter, NetAdapter
 
 
@@ -44,7 +44,10 @@ def read_remote(api, net):
 
 
 def encode_json(content):
-    return json.dumps(sync_result(content), ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    content = sync_result(content)
+    if not isinstance(content, (dict, list)):
+        raise TypeError("Spider data must be a dict or list")
+    return json.dumps(content, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
 
 
 def sync_result(value):
@@ -64,13 +67,10 @@ def boolean_result(value):
 
 def init(ru, extend):
     try:
-        runtime = getattr(ru, "runtime", None)
-        if runtime is not None:
-            runtime.prepare(ru)
+        ru.runtime.prepare(ru)
         sync_result(ru.init(extend))
-    except BaseException:
-        release(ru)
-        raise
+    except BaseException as error:
+        release(ru, error)
 
 
 def bindNet(ru, net, user_agent=None, local=None, streams=None, js=None):
@@ -78,6 +78,7 @@ def bindNet(ru, net, user_agent=None, local=None, streams=None, js=None):
     ru.local = LocalAdapter(local)
     ru.js = JsAdapter(js)
     ru.dialog = DialogAdapter()
+    ru.runtime.bind_helpers(ru)
 
 
 def homeContent(ru, filter):
@@ -118,7 +119,13 @@ def liveContent(ru, url):
 
 
 def proxy(ru, params):
-    return sync_result(ru.proxy(json.loads(params)))
+    value = sync_result(ru.proxy(json.loads(params)))
+    if isinstance(value, (list, tuple)) and len(value) > 2 and isinstance(value[2], (bytes, bytearray)):
+        from java import jarray, jbyte
+
+        value = list(value)
+        value[2] = jarray(jbyte)(value[2])
+    return value
 
 
 def action(ru, action):
@@ -133,18 +140,29 @@ def danmaku(ru, id, emitter):
 
 
 def destroy(ru):
+    failure = None
     try:
         close_dialog(ru)
+    except BaseException as error:
+        failure = error
+    try:
         sync_result(ru.destroy())
-    finally:
-        release(ru)
+    except BaseException as error:
+        failure = cleanup_failure(failure, error)
+    release(ru, failure)
 
 
-def release(ru):
-    close_dialog(ru)
-    runtime = getattr(ru, "runtime", None)
-    if runtime is not None:
-        runtime.close()
+def release(ru, failure=None):
+    try:
+        close_dialog(ru)
+    except BaseException as error:
+        failure = cleanup_failure(failure, error)
+    try:
+        ru.runtime.close()
+    except BaseException as error:
+        failure = cleanup_failure(failure, error)
+    if failure is not None:
+        raise_failure(failure)
 
 
 def close_dialog(ru):
