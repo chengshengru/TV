@@ -7,7 +7,6 @@ import androidx.annotation.Keep;
 import com.chaquo.python.PyObject;
 import com.github.catvod.net.Net;
 import com.github.catvod.utils.Local;
-import com.github.catvod.utils.Util;
 import com.google.gson.Gson;
 
 import org.json.JSONException;
@@ -16,6 +15,7 @@ import org.json.JSONObject;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -151,13 +151,11 @@ public class Spider extends com.github.catvod.crawler.Spider {
     @Override
     public Object[] proxy(Map<String, String> params) throws Exception {
         List<PyObject> list = app.callAttr("proxy", obj, GSON.toJson(params)).asList();
-        boolean base64 = list.size() > 4 && list.get(4).toInt() == 1;
-        boolean header = list.size() > 3 && list.get(3) != null;
-        int status = list.get(0).toInt();
-        String mime = list.get(1).toString();
-        InputStream stream = getStream(list.get(2), base64);
+        if (list.size() < 3) throw new IllegalArgumentException("Proxy response requires status, MIME and body");
+        InputStream stream = proxyBody(list.get(2));
         try {
-            return new Object[]{status, mime, stream, header ? getHeader(list.get(3)) : null};
+            boolean header = list.size() > 3 && list.get(3) != null;
+            return new Object[]{proxyCode(list.get(0)), proxyMime(list.get(1)), stream, header ? getHeader(list.get(3)) : null};
         } catch (RuntimeException | Error error) {
             closeProxyStream(stream, error);
             throw error;
@@ -223,7 +221,6 @@ public class Spider extends com.github.catvod.crawler.Spider {
     }
 
     private void closeProxyStream(InputStream stream, Throwable error) {
-        if (stream == null) return;
         try {
             stream.close();
         } catch (IOException | RuntimeException | Error failure) {
@@ -231,15 +228,25 @@ public class Spider extends com.github.catvod.crawler.Spider {
         }
     }
 
-    private InputStream getStream(PyObject o, boolean base64) {
-        if (o == null) return null;
-        Object value = o.toJava(Object.class);
+    private int proxyCode(PyObject value) {
+        if (value == null) throw new IllegalArgumentException("Proxy response status requires an integer from 100 to 599");
+        int code = value.toInt();
+        if (code < 100 || code > 599) throw new IllegalArgumentException("Proxy response status requires an integer from 100 to 599");
+        return code;
+    }
+
+    private String proxyMime(PyObject value) {
+        if (value == null) throw new IllegalArgumentException("Proxy response MIME requires a string");
+        return value.toJava(String.class);
+    }
+
+    private InputStream proxyBody(PyObject body) {
+        if (body == null) throw new IllegalArgumentException("Proxy body requires text, bytes or InputStream");
+        Object value = body.toJava(Object.class);
         if (value instanceof InputStream stream) return stream;
         if (value instanceof byte[] bytes) return new ByteArrayInputStream(bytes);
-        if (o.type().toString().contains("bytes")) return new ByteArrayInputStream(o.toJava(byte[].class));
-        String content = o.toString();
-        if (base64 && content.contains("base64,")) content = content.split("base64,")[1];
-        return new ByteArrayInputStream(base64 ? Util.decode(content) : content.getBytes());
+        if (value instanceof String text) return new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8));
+        throw new IllegalArgumentException("Proxy body requires text, bytes or InputStream");
     }
 
     @Keep

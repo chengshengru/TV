@@ -1,5 +1,6 @@
 import builtins
 import hashlib
+import importlib
 import json
 import os
 import shutil
@@ -8,11 +9,40 @@ import threading
 import types
 import uuid
 from importlib.machinery import ModuleSpec
+from importlib._bootstrap import _ModuleLockManager, _lock_unlock_module
 from urllib.parse import urljoin, urlsplit
 
 
 class SourceNotFoundError(FileNotFoundError):
     pass
+
+
+def cleanup_failure(failure, error):
+    if failure is None:
+        return error
+    contexts = set()
+    current = failure
+    while current is not None and id(current) not in contexts:
+        if current is error:
+            return failure
+        contexts.add(id(current))
+        current = current.__context__
+    current = error
+    while current.__context__ is not None and id(current.__context__) not in contexts:
+        contexts.add(id(current))
+        current = current.__context__
+    current.__context__ = failure.__context__
+    failure.__context__ = error
+    return failure
+
+
+def raise_failure(failure):
+    context = failure.__context__
+    try:
+        raise failure
+    except BaseException:
+        failure.__context__ = context
+        raise
 
 
 class _Load:
@@ -38,14 +68,17 @@ class Runtime:
         self._lock = threading.RLock()
         self._closed = False
         self._modules = {}
+        self._spiders = {}
         self._files = {}
         self._references = {}
         self._declared = set()
         self._downloads = {}
         self._loading = {}
         self._waiting = {}
+        self._executing = threading.local()
         os.makedirs(self.directory, exist_ok=True)
         self._package("")
+        sys.meta_path.insert(0, self)
 
     def _check_open(self):
         if self._closed:
@@ -64,15 +97,15 @@ class Runtime:
         return name
 
     def _package(self, name):
-        with self._lock:
+        full_name = self.namespace + ("." + name if name else "")
+        with _ModuleLockManager(full_name), self._lock:
             self._check_open()
             if name in self._modules:
                 return self._modules[name]
-            full_name = self.namespace + ("." + name if name else "")
             module = types.ModuleType(full_name)
             module.__package__ = full_name
             module.__path__ = [os.path.join(self.directory, *name.split(".")) if name else self.directory]
-            module.__spec__ = ModuleSpec(full_name, loader=None, is_package=True)
+            module.__spec__ = ModuleSpec(full_name, loader=self, is_package=True)
             self._register(name, module)
             return module
 
@@ -181,21 +214,32 @@ class Runtime:
         else:
             self._package(parent)
 
-    def _module(self, name, path, package, module):
-        full_name = self.namespace + "." + name
-        if module is None:
-            module = types.ModuleType(full_name)
+    def find_spec(self, fullname, path=None, target=None):
+        if not fullname.startswith(self.namespace + "."):
+            return None
+        name = fullname[len(self.namespace) + 1:]
+        with self._lock:
+            self._check_open()
+            known = self._declared | self._files.keys()
+            package = name + ".__init__" in known or any(item.startswith(name + ".") for item in known)
+        return ModuleSpec(fullname, self, is_package=package)
+
+    def create_module(self, spec):
+        return None
+
+    def exec_module(self, module):
+        name = module.__name__[len(self.namespace) + 1:]
+        self._execute_module(name, module)
+
+    def _configure_module(self, path, package, module):
         module.__file__ = path
-        module.__package__ = full_name if package else full_name.rpartition(".")[0]
-        module.__spec__ = ModuleSpec(full_name, loader=None, origin=path, is_package=package)
+        module.__package__ = module.__name__ if package else module.__name__.rpartition(".")[0]
+        module.__spec__.origin = path
         if package:
             module.__path__ = [os.path.dirname(path)]
         module.__dict__["__builtins__"] = {**vars(builtins), "__import__": self._import}
-        return module
 
     def _restore(self, name, module, snapshot):
-        if module is None:
-            return
         if snapshot is None or self._modules.get(name) is not module:
             self._remove(name, module)
             return
@@ -207,50 +251,72 @@ class Runtime:
                 setattr(module, attribute, child)
 
     def load_module(self, name):
-        if name.endswith(".__init__"):
-            name = name.removesuffix(".__init__")
+        name = name.removesuffix(".__init__")
         self._parents(name)
         with self._lock:
             self._check_open()
-            initializer = name + ".__init__"
-            known = self._declared | self._files.keys()
-            package = initializer in known
             module = self._modules.get(name)
             pending = self._loading.get(name)
-            if pending is not None:
-                owner = False
-            elif module is not None and (not package or module.__spec__.origin is not None):
-                return module
-            else:
-                pending = self._loading[name] = _Load()
-                owner = True
-            if owner and not package and any(item.startswith(name + ".") for item in known):
-                pending.value = self._package(name)
-                self._loading.pop(name)
-                pending.done.set()
-                return pending.value
-            snapshot = module.__dict__.copy() if owner and module is not None else None
-        if not owner:
-            return self._wait(pending, name)
-        return self._execute_module(name, package, module, pending, snapshot)
+            upgrade = pending is None and module is not None and module.__spec__.origin is None and name + ".__init__" in self._declared | self._files.keys()
+        if pending is not None:
+            return self._await_module(name, pending)
+        if upgrade:
+            return self._initialize_package(name, module)
+        module = importlib.import_module(self.namespace + "." + name)
+        with self._lock:
+            self._check_open()
+        return module
 
-    def _execute_module(self, name, package, module, pending, snapshot):
-        try:
-            path, payload = self._module_source(name, package)
-            module = self._module(name, path, package, module)
+    def _await_module(self, name, pending):
+        if not getattr(self._executing, "depth", 0):
+            return self._wait(pending, name)
+        _lock_unlock_module(self.namespace + "." + name)
+        with self._lock:
+            self._check_open()
+            if pending.error is not None:
+                raise pending.error
+            return self._modules[name]
+
+    def _initialize_package(self, name, module):
+        with _ModuleLockManager(module.__name__):
             with self._lock:
                 self._check_open()
-                self._register(name, module)
-            exec(compile(payload, path, "exec"), module.__dict__)
+                if module.__spec__.origin is not None:
+                    return module
+                snapshot = module.__dict__.copy()
+                module.__spec__ = ModuleSpec(module.__name__, self, is_package=True)
+                module.__spec__._initializing = True
+            try:
+                self._execute_module(name, module, snapshot)
+            finally:
+                module.__spec__._initializing = False
+        return module
+
+    def _execute_module(self, name, module, snapshot=None):
+        with self._lock:
+            self._check_open()
+            known = self._declared | self._files.keys()
+            package = name + ".__init__" in known
+            pending = self._loading[name] = _Load()
+            self._register(name, module)
+        depth = getattr(self._executing, "depth", 0)
+        self._executing.depth = depth + 1
+        try:
+            self._evaluate_module(name, module, known, package)
             self._complete_module(name, module, pending)
-            return module
         except BaseException as error:
-            with self._lock:
-                self._restore(name, module, snapshot)
-                self._loading.pop(name, None)
-                pending.error = error
-                pending.done.set()
+            self._fail_module(name, module, snapshot, pending, error)
             raise
+        finally:
+            self._executing.depth = depth
+
+    def _evaluate_module(self, name, module, known, package):
+        if package or not any(item.startswith(name + ".") for item in known):
+            path, payload = self._module_source(name, package)
+            self._configure_module(path, package, module)
+            exec(compile(payload, path, "exec"), module.__dict__)
+        else:
+            module.__path__ = [os.path.join(self.directory, *name.split("."))]
 
     def _module_source(self, name, package):
         try:
@@ -263,6 +329,13 @@ class Runtime:
             self._check_open()
             pending.value = module
             self._loading.pop(name)
+            pending.done.set()
+
+    def _fail_module(self, name, module, snapshot, pending, error):
+        with self._lock:
+            self._restore(name, module, snapshot)
+            self._loading.pop(name, None)
+            pending.error = error
             pending.done.set()
 
     def _import(self, name, globals=None, locals=None, fromlist=(), level=0):
@@ -297,12 +370,18 @@ class Runtime:
             self._check_open()
             return self._modules[name.split(".")[0]] if not level else module
 
-    def _import_children(self, module, fromlist):
+    def _import_children(self, module, fromlist, recursive=False):
         for item in fromlist:
-            self._import_child(module, item)
+            if not isinstance(item, str):
+                raise TypeError("Import names must be strings")
+            if item == "*":
+                if not recursive and hasattr(module, "__all__"):
+                    self._import_children(module, module.__all__, True)
+            else:
+                self._import_child(module, item)
 
     def _import_child(self, module, item):
-        if item != "*" and hasattr(module, "__path__"):
+        if hasattr(module, "__path__"):
             child = ".".join(filter(None, (module.__name__.removeprefix(self.namespace).lstrip("."), item)))
             with self._lock:
                 self._check_open()
@@ -327,14 +406,26 @@ class Runtime:
             self._check_open()
             spider.runtime = self
             spider.siteKey = self.site_key
+            self._spiders[id(spider)] = spider
         return spider
+
+    def bind_helpers(self, spider):
+        with self._lock:
+            self._check_open()
+            helpers = spider.net, spider.local, spider.js, spider.dialog
+            for child in self._spiders.values():
+                if child is not spider:
+                    child.net, child.local, child.js, child.dialog = helpers
 
     def create(self):
         try:
             self._download(self.entry, self.source)
             return self.spider()
-        except BaseException:
-            self.close()
+        except BaseException as error:
+            try:
+                self.close()
+            except BaseException as closing:
+                raise_failure(cleanup_failure(error, closing))
             raise
 
     def prepare(self, spider):
@@ -347,23 +438,30 @@ class Runtime:
 
     def close(self):
         with self._lock:
-            if self._closed:
-                return
             directory = os.path.realpath(self.directory)
             if os.path.commonpath((directory, self._cache)) != self._cache or directory == self._cache:
                 raise ValueError("Python runtime directory is outside its cache")
-            self._closed = True
-            for name in list(sys.modules):
-                if name == self.namespace or name.startswith(self.namespace + "."):
-                    sys.modules.pop(name)
-            self._modules.clear()
-            self._files.clear()
-            self._references.clear()
-            self._declared.clear()
-            for pending in (*self._downloads.values(), *self._loading.values()):
-                pending.done.set()
-            self._downloads.clear()
-            self._loading.clear()
+            if not self._closed:
+                self._close_modules()
+            self._remove_directory(directory)
+
+    def _close_modules(self):
+        self._closed = True
+        sys.meta_path.remove(self)
+        for name in list(sys.modules):
+            if name == self.namespace or name.startswith(self.namespace + "."):
+                sys.modules.pop(name)
+        self._modules.clear()
+        self._spiders.clear()
+        self._files.clear()
+        self._references.clear()
+        self._declared.clear()
+        for pending in (*self._downloads.values(), *self._loading.values()):
+            pending.done.set()
+        self._downloads.clear()
+        self._loading.clear()
+
+    def _remove_directory(self, directory):
         try:
             shutil.rmtree(directory)
         except FileNotFoundError:

@@ -79,8 +79,10 @@ class Spider:
     def loadModule(self, name):
         return self.runtime.load_reference(name)
 
-    def getProxyUrl(self, params=None, local=True):
-        params = {} if params is None else dict(params)
+    def proxyUrl(self, params=None, local=True):
+        params = {} if params is None else params
+        if not isinstance(params, dict) or any(not isinstance(key, str) or not isinstance(value, str) for key, value in params.items()):
+            raise TypeError("Proxy parameters require a dict with string keys and values")
         if not isinstance(local, bool):
             raise TypeError("Proxy local flag requires a boolean")
         if "do" in params or "siteKey" in params:
@@ -89,8 +91,8 @@ class Spider:
         query = urlencode({"do": "py", "siteKey": self.siteKey, **params})
         return url + "?" + query
 
-    def getDanmakuUrl(self, id):
-        return str(JavaSpider.getDanmakuUrl(self.siteKey, id))
+    def danmakuUrl(self, id):
+        return str(JavaSpider.danmakuUrl(self.siteKey, id))
 
     def log(self, msg):
         if isinstance(msg, (dict, list)):

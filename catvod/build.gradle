@@ -37,4 +37,8 @@ dependencies {
     testImplementation libs.okhttp.tls
     coreLibraryDesugaring libs.desugar
     testImplementation libs.junit
+    testImplementation libs.jsoup
+    testImplementation 'org.robolectric:robolectric:4.16'
 }
+
+if (file('test.gradle').isFile()) apply from: 'test.gradle'

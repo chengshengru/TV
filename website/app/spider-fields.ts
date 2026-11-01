@@ -306,7 +306,7 @@ export const objectGroups = [
   {
     name: "Danmaku",
     fields: [
-      ["url", "HTTP(S) 資料網址，或由 getDanmakuUrl(id) 產生的即時來源。"],
+      ["url", "HTTP(S) 資料網址，或由 danmakuUrl(id) 產生的即時來源。"],
       ["name", "選填顯示名稱。"],
     ],
   },

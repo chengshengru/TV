@@ -969,8 +969,8 @@ if (second === null) return {};`}</CodeBlock>
             <h2>即時彈幕</h2>
             <p>
               Java／Python／QuickJS 的播放回應沿用 <code>danmaku: [&#123;name, url&#125;]</code>。
-              即時來源的 url 用 <code>getDanmakuUrl(id)</code> 產生，Python 使用{" "}
-              <code>self.getDanmakuUrl(id)</code>；App 會呼叫該站點的 <code>danmaku(id, emit)</code>。
+              即時來源的 url 用 <code>danmakuUrl(id)</code> 產生，Python 使用{" "}
+              <code>self.danmakuUrl(id)</code>；App 會呼叫該站點的 <code>danmaku(id, emit)</code>。
               HTTP(S) 來源仍按彈幕檔案載入。
             </p>
             <CodeBlock label="JSON / 即時彈幕" path="emit(item)">{`{

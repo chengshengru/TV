@@ -41,6 +41,10 @@ def asset_name(name):
 
 def read_manifest(data, lock, kind):
     manifest = json.loads(data)
+    if kind == "pure-wheels":
+        if len(manifest["wheels"]) != 1:
+            raise ValueError("Incomplete pure Python wheels")
+        return manifest
     producer = manifest["producer"]
     if any(producer[key] != lock[key] for key in ["repository", "commit", "tag"]):
         raise ValueError(f"Python producer mismatch: {kind}")
@@ -49,27 +53,34 @@ def read_manifest(data, lock, kind):
     return manifest
 
 
+def manifest_entries(manifest, kind):
+    if kind == "pure-wheels":
+        yield from manifest["wheels"]
+        return
+    for abi, report in manifest["abis"].items():
+        if report["abi"] != abi:
+            raise ValueError(f"Python ABI mismatch: {kind}")
+        entries = report["wheels"] if kind == "wheels" else [report]
+        if not entries:
+            raise ValueError(f"Missing Python assets: {kind}/{abi}")
+        yield from entries
+
+
 def collect_assets(lock, directory, base):
     assets = {}
     manifests = {}
-    for kind in ["wheels", "native-bundles"]:
+    for kind in ["wheels", "native-bundles", "pure-wheels"]:
         source = lock["manifests"][kind]
         name = asset_name(source["file"])
         data = verified_bytes(directory / kind / "manifest.json", base + name, source["sha256"])
         manifest = read_manifest(data, lock, kind)
         manifests[kind] = data
-        for abi, report in manifest["abis"].items():
-            if report["abi"] != abi:
-                raise ValueError(f"Python ABI mismatch: {kind}")
-            entries = report["wheels"] if kind == "wheels" else [report]
-            if not entries:
-                raise ValueError(f"Missing Python assets: {kind}/{abi}")
-            for entry in entries:
-                name = asset_name(entry["file"])
-                key = (kind, name)
-                if key in assets:
-                    raise ValueError(f"Duplicate Python asset: {name}")
-                assets[key] = entry["sha256"]
+        for entry in manifest_entries(manifest, kind):
+            name = asset_name(entry["file"])
+            key = (kind, name)
+            if key in assets:
+                raise ValueError(f"Duplicate Python asset: {name}")
+            assets[key] = entry["sha256"]
     return assets, manifests
 
 

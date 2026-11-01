@@ -177,6 +177,7 @@ public class CastActivity extends PlaybackActivity implements VodInput.Listener 
     }
 
     private void start() {
+        mInput.cancelSeek();
         mPlaybackKey = mAction.getCurrentURI();
         if (mRenderer != null) mRenderer.activateDlna(mDlnaOwner, mPlaybackKey);
         startPlayer(mPlaybackKey, mAction.result(), false, Constant.TIMEOUT_PLAY, buildMetadata());
@@ -270,6 +271,7 @@ public class CastActivity extends PlaybackActivity implements VodInput.Listener 
     }
 
     private void showControl() {
+        mInput.cancelSeek();
         mBinding.control.getRoot().setVisibility(View.VISIBLE);
         mBinding.control.action.reset.requestFocus();
         setR1Callback();
@@ -312,10 +314,12 @@ public class CastActivity extends PlaybackActivity implements VodInput.Listener 
     }
 
     private void onPaused() {
+        mInput.cancelSeek();
         controller().pause();
     }
 
     private void onPlay() {
+        mInput.cancelSeek();
         if (isEnded()) controller().seekTo(0);
         if (!player().isEmpty() && isIdle()) controller().prepare();
         controller().play();
@@ -418,7 +422,13 @@ public class CastActivity extends PlaybackActivity implements VodInput.Listener 
     }
 
     @Override
+    public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
+        if (!playWhenReady && isOwner()) mInput.cancelSeek();
+    }
+
+    @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getKeyCode() == KeyEvent.KEYCODE_MENU && KeyUtil.isActionDown(event)) mInput.cancelSeek();
         if (KeyUtil.isMenuKey(event)) onToggle();
         if (isVisible(mBinding.control.getRoot())) setR1Callback();
         if (isGone(mBinding.control.getRoot()) && service() != null && mInput.onKeyEvent(event)) return true;
@@ -439,6 +449,11 @@ public class CastActivity extends PlaybackActivity implements VodInput.Listener 
     public void onSeekEnd(long time) {
         if (player().isEmpty()) return;
         seekTo(time);
+    }
+
+    @Override
+    public void onSeekCancel() {
+        hideCenter();
     }
 
     @Override
@@ -487,15 +502,21 @@ public class CastActivity extends PlaybackActivity implements VodInput.Listener 
 
     @Override
     protected void onStop() {
+        mInput.cancelSeek();
         super.onStop();
         if (PlayerSetting.isBackgroundOff()) mClock.stop();
     }
 
     @Override
     protected void onBackInvoked() {
-        if (isVisible(mBinding.control.getRoot())) hideControl();
-        else if (isVisible(mBinding.widget.center)) hideCenter();
-        else super.onBackInvoked();
+        if (isVisible(mBinding.control.getRoot())) {
+            hideControl();
+        } else if (isVisible(mBinding.widget.center)) {
+            mInput.cancelSeek();
+            hideCenter();
+        } else {
+            super.onBackInvoked();
+        }
     }
 
     private void releaseRenderer() {
@@ -507,6 +528,7 @@ public class CastActivity extends PlaybackActivity implements VodInput.Listener 
 
     @Override
     protected void onDestroy() {
+        mInput.cancelSeek();
         mClock.release();
         releaseRenderer();
         App.removeCallbacks(mR1, mR2);
