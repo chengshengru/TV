@@ -66,6 +66,7 @@ import com.fongmi.android.tv.ui.dialog.SpeedSettingDialog;
 import com.fongmi.android.tv.ui.dialog.TrackDialog;
 import com.fongmi.android.tv.utils.Clock;
 import com.fongmi.android.tv.utils.ImgUtil;
+import com.fongmi.android.tv.utils.KeyUtil;
 import com.fongmi.android.tv.utils.Notify;
 import com.fongmi.android.tv.utils.ResUtil;
 import com.fongmi.android.tv.utils.Traffic;
@@ -433,6 +434,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
 
     private void showUI() {
         if (isVisible(mBinding.recycler) || mGroupAdapter.getItemCount() == 0) return;
+        mInput.cancelSeek();
         mBinding.recycler.setVisibility(View.VISIBLE);
         setPosition();
         setUITimer();
@@ -548,6 +550,11 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
         if (isPlaying || isPaused() || isWebPlaybackActive()) updatePlayControl(isPlaying);
     }
 
+    @Override
+    public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
+        if (!playWhenReady && isOwner()) mInput.cancelSeek();
+    }
+
     private void updatePlayControl(boolean isPlaying) {
         mBinding.control.action.playPause.setText(isPlaying ? R.string.pause : R.string.play);
     }
@@ -597,6 +604,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     }
 
     private void showControl(View view) {
+        mInput.cancelSeek();
         mBinding.control.getRoot().setVisibility(View.VISIBLE);
         mBinding.widget.top.setVisibility(View.VISIBLE);
         App.post(view::requestFocus, 25);
@@ -798,17 +806,20 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
 
     @Override
     public void preparePlaybackForRefresh() {
+        mInput.cancelSeek();
         player().prepareForReplacement();
     }
 
     @Override
     public void stopPlaybackForRefresh() {
+        mInput.cancelSeek();
         stopWebPlayback();
         stopPlayer();
     }
 
     @Override
     public void startPlayback(Result result, long position, MediaMetadata metadata) {
+        mInput.cancelSeek();
         mPlaybackKey = result.getRealUrl();
         if (startWebPlayback(result)) return;
         startPlayer(mPlaybackKey, result, false, getHome().getTimeout(), position, metadata);
@@ -994,11 +1005,13 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     }
 
     private void onPaused() {
+        mInput.cancelSeek();
         if (pauseWebPlayback()) return;
         controller().pause();
     }
 
     private void onPlay() {
+        mInput.cancelSeek();
         if (resumeWebPlayback()) return;
         controller().play();
     }
@@ -1009,6 +1022,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getKeyCode() == KeyEvent.KEYCODE_MENU && KeyUtil.isActionDown(event)) mInput.cancelSeek();
         if (isVisible(mBinding.control.getRoot())) setR1Callback();
         if (isVisible(mBinding.control.getRoot())) mFocus2 = getCurrentFocus();
         if (service() != null && mInput.onKeyEvent(event)) return true;
@@ -1023,6 +1037,11 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     @Override
     public boolean canHandleKeyEvent() {
         return isGone(mBinding.recycler) && isGone(mBinding.control.getRoot());
+    }
+
+    @Override
+    public boolean canSeek() {
+        return player().canSeek();
     }
 
     @Override
@@ -1059,15 +1078,23 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
     }
 
     @Override
-    public void onKeyLeft(long time) {
-        if (!player().canSeek()) prevLine();
-        else App.post(() -> seekTo(time), 250);
+    public void onSeekEnd(long time) {
+        seekTo(time);
     }
 
     @Override
-    public void onKeyRight(long time) {
-        if (!player().canSeek()) nextLine(true);
-        else App.post(() -> seekTo(time), 250);
+    public void onSeekCancel() {
+        hideCenter();
+    }
+
+    @Override
+    public void onKeyLeft() {
+        prevLine();
+    }
+
+    @Override
+    public void onKeyRight() {
+        nextLine(true);
     }
 
     @Override
@@ -1101,6 +1128,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
 
     @Override
     protected void onStop() {
+        mInput.cancelSeek();
         super.onStop();
         if (PlayerSetting.isBackgroundOff()) mClock.stop();
     }
@@ -1123,6 +1151,7 @@ public class LiveActivity extends PlaybackActivity implements GroupAdapter.OnCli
 
     @Override
     protected void onDestroy() {
+        mInput.cancelSeek();
         mClock.release();
         if (isBindingOwner() && isOwner()) Source.get().exit();
         App.removeCallbacks(mR0, mR1, mR2, mR3, mR4);

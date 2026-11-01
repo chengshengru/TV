@@ -6,7 +6,6 @@ import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.viewbinding.ViewBinding;
 
@@ -18,7 +17,9 @@ import com.fongmi.android.tv.bean.Value;
 import com.fongmi.android.tv.databinding.FragmentFolderBinding;
 import com.fongmi.android.tv.ui.base.BaseFragment;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Optional;
 
 public class FolderFragment extends BaseFragment {
@@ -68,12 +69,12 @@ public class FolderFragment extends BaseFragment {
 
     private HashMap<String, String> getExtend() {
         HashMap<String, String> extend = new HashMap<>();
-        for (Filter filter : mType.getFilters()) if (filter.getInit() != null) extend.put(filter.getKey(), filter.setSelected(filter.getInit()));
+        for (Filter filter : mType.getFilters()) if (filter.getInit() != null) extend.put(filter.getKey(), filter.getInit());
         return extend;
     }
 
     public void openFolder(String typeId, HashMap<String, String> extend) {
-        TypeFragment next = TypeFragment.newInstance(getKey(), typeId, mType.getStyle(), extend, mType.isFolder(), getY());
+        TypeFragment next = TypeFragment.newInstance(getKey(), typeId, mType.getStyle(), new HashMap<>(extend), mType.isFolder(), getY());
         FragmentTransaction ft = getChildFragmentManager().beginTransaction();
         Optional.ofNullable(getChild()).ifPresent(ft::hide);
         ft.add(R.id.container, next);
@@ -94,8 +95,11 @@ public class FolderFragment extends BaseFragment {
     }
 
     public void setFilter(String key, Value value) {
-        getChildFragmentManager().popBackStackImmediate(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
         Optional.ofNullable(getChild()).ifPresent(f -> f.setFilter(key, value));
+    }
+
+    public List<Filter> getFilters() {
+        return Optional.ofNullable(getChild()).map(TypeFragment::getFilters).orElse(Collections.emptyList());
     }
 
     public boolean canBack() {

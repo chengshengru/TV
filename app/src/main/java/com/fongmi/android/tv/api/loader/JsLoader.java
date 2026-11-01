@@ -1,24 +1,29 @@
 package com.fongmi.android.tv.api.loader;
 
 import com.fongmi.android.tv.App;
+import com.fongmi.android.tv.exception.SpiderLoadException;
 import com.github.catvod.crawler.Spider;
-import com.github.catvod.crawler.SpiderNull;
 import com.github.catvod.runtime.QuickJsRuntime;
 import com.github.catvod.utils.RuntimeModule;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
 
 import dalvik.system.DexClassLoader;
 
 public class JsLoader {
 
-    private final ConcurrentHashMap<String, Spider> spiders;
-    private final ReentrantReadWriteLock lifecycle;
+    private final Map<String, Spider> spiders;
+    private final Map<String, FutureTask<Spider>> loading;
     private final QuickJsRuntime loader;
     private final QuickJsRuntime.Session module;
-    private volatile String recent;
+    private String recent;
+    private boolean closed;
 
     public JsLoader() {
         this(RuntimeModule.QUICKJS.entry(QuickJsRuntime.class));
@@ -29,29 +34,34 @@ public class JsLoader {
     }
 
     private JsLoader(QuickJsRuntime loader) {
-        spiders = new ConcurrentHashMap<>();
-        lifecycle = new ReentrantReadWriteLock();
+        spiders = new HashMap<>();
+        loading = new HashMap<>();
         module = loader.session();
         this.loader = loader;
     }
 
     public void clear() {
-        lifecycle.writeLock().lock();
-        try {
-            Throwable failure = destroySpiders();
-            failure = clearModule(failure);
+        List<FutureTask<Spider>> pending;
+        List<Spider> active;
+        synchronized (this) {
+            if (closed) return;
+            closed = true;
+            pending = new ArrayList<>(loading.values());
+            active = new ArrayList<>(spiders.values());
+            loading.clear();
             spiders.clear();
             recent = null;
-            if (failure instanceof RuntimeException error) throw error;
-            if (failure instanceof Error error) throw error;
-        } finally {
-            lifecycle.writeLock().unlock();
         }
+        for (FutureTask<Spider> task : pending) task.cancel(true);
+        Throwable failure = destroySpiders(active);
+        failure = clearModule(failure);
+        if (failure instanceof RuntimeException error) throw error;
+        if (failure instanceof Error error) throw error;
     }
 
-    private Throwable destroySpiders() {
+    private Throwable destroySpiders(List<Spider> active) {
         Throwable failure = null;
-        for (Spider spider : spiders.values()) failure = destroySpider(spider, failure);
+        for (Spider spider : active) failure = destroySpider(spider, failure);
         return failure;
     }
 
@@ -75,32 +85,65 @@ public class JsLoader {
         return failure;
     }
 
-    public void setRecent(String recent) {
+    public synchronized void setRecent(String recent) {
+        checkOpen();
         this.recent = recent;
     }
 
     public Spider getSpider(String key, String api, String ext, String jar) {
-        lifecycle.readLock().lock();
-        try {
-            return spiders.computeIfAbsent(key, k -> createSpider(k, api, ext, jar));
-        } finally {
-            lifecycle.readLock().unlock();
+        FutureTask<Spider> task;
+        synchronized (this) {
+            checkOpen();
+            Spider spider = spiders.get(key);
+            if (spider != null) return spider;
+            task = loading.computeIfAbsent(key, k -> new FutureTask<>(() -> createSpider(k, api, ext, jar)));
         }
+        try {
+            task.run();
+            return awaitSpider(task);
+        } finally {
+            synchronized (this) {
+                if (task.isDone()) loading.remove(key, task);
+            }
+        }
+    }
+
+    private Spider awaitSpider(FutureTask<Spider> task) {
+        try {
+            Spider spider = task.get();
+            checkOpen();
+            return spider;
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new SpiderLoadException(error);
+        } catch (ExecutionException error) {
+            if (error.getCause() instanceof Error fatal) throw fatal;
+            throw (RuntimeException) error.getCause();
+        }
+    }
+
+    private synchronized void checkOpen() {
+        if (closed) throw new CancellationException("JavaScript loader is closed");
     }
 
     private Spider createSpider(String key, String api, String ext, String jar) {
         Spider spider = null;
         try {
             spider = newSpider(key, api, BaseLoader.get().dex(jar));
+            checkOpen();
             spider.init(App.get(), ext);
+            cacheSpider(key, spider);
             return spider;
-        } catch (Throwable e) {
-            if (spider != null) spider.destroy();
-            RuntimeModule.MissingException missing = RuntimeModule.MissingException.find(e);
-            if (missing != null) throw missing;
-            e.printStackTrace();
-            return new SpiderNull();
+        } catch (Exception | Error error) {
+            if (spider != null) destroySpider(spider, error);
+            if (error instanceof Error fatal) throw fatal;
+            throw new SpiderLoadException(error);
         }
+    }
+
+    private synchronized void cacheSpider(String key, Spider spider) {
+        checkOpen();
+        spiders.put(key, spider);
     }
 
     Spider newSpider(String key, String api, DexClassLoader dex) {
@@ -110,13 +153,15 @@ public class JsLoader {
     }
 
     void cancel() {
-        module.clear();
+        clear();
     }
 
     public Object[] proxy(Map<String, String> params) throws Exception {
-        String key = recent;
-        if (key == null) return null;
-        Spider spider = spiders.get(key);
+        Spider spider;
+        synchronized (this) {
+            checkOpen();
+            spider = spiders.get(recent);
+        }
         return spider != null ? spider.proxy(params) : null;
     }
 }

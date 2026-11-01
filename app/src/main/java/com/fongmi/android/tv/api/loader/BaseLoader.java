@@ -24,8 +24,8 @@ import dalvik.system.DexClassLoader;
 
 public class BaseLoader {
 
-    private final JarLoader jarLoader;
-    private final NodeLoader nodeLoader;
+    private volatile JarLoader jarLoader;
+    private volatile NodeLoader nodeLoader;
     private volatile PyLoader pyLoader;
     private volatile JsLoader jsLoader;
 
@@ -67,33 +67,49 @@ public class BaseLoader {
     }
 
     public void clear() {
-        nodeLoader.clear();
+        JarLoader previousJar;
+        NodeLoader previousNode;
         PyLoader previousPy;
         JsLoader previousJs;
         synchronized (this) {
+            previousJar = jarLoader;
+            previousNode = nodeLoader;
             previousPy = pyLoader;
             previousJs = jsLoader;
+            jarLoader = new JarLoader();
+            nodeLoader = new NodeLoader();
             if (previousPy != null) pyLoader = new PyLoader(previousPy);
             if (previousJs != null) jsLoader = new JsLoader(previousJs);
         }
-        Task.execute(() -> destroy(previousPy, previousJs));
+        Task.execute(() -> destroy(previousJar, previousNode, previousPy, previousJs));
     }
 
-    private void destroy(PyLoader py, JsLoader js) {
-        Throwable failure = clearJar();
+    private void destroy(JarLoader jar, NodeLoader node, PyLoader py, JsLoader js) {
+        Throwable failure = clearNode(node);
+        failure = clearJar(jar, failure);
         failure = clearPython(py, failure);
         failure = clearJavaScript(js, failure);
         if (failure instanceof RuntimeException error) throw error;
         if (failure instanceof Error error) throw error;
     }
 
-    private Throwable clearJar() {
+    private Throwable clearNode(NodeLoader loader) {
         try {
-            jarLoader.clear();
+            loader.clear();
             return null;
         } catch (RuntimeException | Error error) {
             return error;
         }
+    }
+
+    private Throwable clearJar(JarLoader loader, Throwable failure) {
+        try {
+            loader.clear();
+        } catch (RuntimeException | Error error) {
+            if (failure == null) failure = error;
+            else if (failure != error) failure.addSuppressed(error);
+        }
+        return failure;
     }
 
     private Throwable clearPython(PyLoader loader, Throwable failure) {
@@ -188,8 +204,9 @@ public class BaseLoader {
     public void parseJar(String jar, boolean recent) {
         if (TextUtils.isEmpty(jar)) return;
         String key = Crypto.md5(jar);
-        jarLoader.parseJar(key, jar);
-        if (recent) jarLoader.setRecent(key);
+        JarLoader loader = jarLoader;
+        loader.parseJar(key, jar);
+        if (recent) loader.setRecent(key);
     }
 
     public DexClassLoader dex(String jar) {

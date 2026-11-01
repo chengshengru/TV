@@ -6,7 +6,6 @@ import android.view.ViewGroup;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.viewbinding.ViewBinding;
 
@@ -69,7 +68,7 @@ public class FolderFragment extends BaseFragment {
     }
 
     public void openFolder(String typeId, HashMap<String, String> extend) {
-        TypeFragment next = TypeFragment.newInstance(getKey(), typeId, mType.getStyle(), extend, mType.isFolder());
+        TypeFragment next = TypeFragment.newInstance(getKey(), typeId, mType.getStyle(), new HashMap<>(extend), mType.isFolder());
         FragmentTransaction ft = getChildFragmentManager().beginTransaction();
         Optional.ofNullable(getParent()).ifPresent(VodActivity::closeFilter);
         Optional.ofNullable(getChild()).ifPresent(ft::hide);
@@ -79,7 +78,6 @@ public class FolderFragment extends BaseFragment {
     }
 
     public void toggleFilter(boolean visible) {
-        if (visible && !Cache.get(getType()).isEmpty()) getChildFragmentManager().popBackStackImmediate(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
         Optional.ofNullable(getChild()).ifPresent(f -> f.toggleFilter(visible));
     }
 
