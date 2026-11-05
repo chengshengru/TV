@@ -143,7 +143,14 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
     }
 
     public static void cast(Activity activity, History history) {
-        start(activity, history.getSiteKey(), history.getVodId(), history.getVodName(), history.getVodPic(), null, false, true);
+        history = history.copy();
+        history.setVodPic(ImgUtil.cache(history.getVodPic()));
+        Intent intent = new Intent(activity, VideoActivity.class);
+        intent.putExtra("key", history.getSiteKey()).putExtra("id", history.getVodId());
+        intent.putExtra("name", history.getVodName()).putExtra("history", history.toString());
+        intent.putExtra("cast", true);
+        putPic(intent, history.getVodPic());
+        activity.startActivity(intent);
     }
 
     public static void collect(Activity activity, String key, String id, String name, String pic) {
@@ -219,6 +226,13 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
         return getKey().concat(AppDatabase.SYMBOL).concat(getId()).concat(AppDatabase.SYMBOL) + VodConfig.getCid();
     }
 
+    @Override
+    public History takeCastHistory() {
+        History history = History.objectFrom(getIntent().getStringExtra("history"));
+        getIntent().removeExtra("history");
+        return history;
+    }
+
     private Site getSite() {
         return VodConfig.get().getSite(getKey());
     }
@@ -270,7 +284,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (TextUtils.isEmpty(intent.getStringExtra("id")) || isSameVideo(intent)) return;
+        if (TextUtils.isEmpty(intent.getStringExtra("id")) || (isSameVideo(intent) && !intent.hasExtra("history"))) return;
         mInput.cancelSeek();
         externalPlaybackCompleted = false;
         saveHistory(true);
@@ -1337,6 +1351,7 @@ public class VideoActivity extends PlaybackActivity implements VodPlaybackHost, 
 
     @Override
     public void onDiscMenuStateChanged(@NonNull DiscMenuState state) {
+        if (!isNativePlaybackCurrent()) return;
         super.onDiscMenuStateChanged(state);
         updateDiscMenuVisibility();
         if (isDiscMenuTransition()) hideProgress();
